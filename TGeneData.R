@@ -11,34 +11,40 @@ rm(list=ls())
 
 gene.data<- read.table("Gene_data.txt", header = TRUE)
 gene.data.info<- gene.data[1:7]
-gene.data<- gene.data[,c(1,16:51)]
-row.names(gene.data)<-gene.data$ID
+gene.data<- gene.data[,8:51]
+#row.names(gene.data)<-gene.data$ID
 #remove extra info
-gene.data<-gene.data[2:37]
+#gene.data<-gene.data[2:37]
 #Create allelic data frame
+
 y<- alleles2loci(gene.data)
-y
+colnames(y)
 
 #Rename columns
-colnames(y)<- c("X1gl",  "X1gm",  "X1gs",  "X1gxl", "X1ys",  "X1yxl", "X2bs",  "X2bxl", "X2gl", 
-                "X2gs",  "X2gxl", "X2yl", "X2ys",  "m1",    "m10",   "m12",   "m14",   "m15") 
-#Create genind object
-y.gen.ind<- loci2genind(y)
+colnames(y)<- c("X1bl",  "X1bm",  "X1bs",  "X1bxl", "X1gl",  "X1gm",  "X1gs",  "X1gxl", "X1ys",  "X1yxl", "X2bs",
+                "X2bxl", "X2gl", "X2gs",  "X2gxl", "X2yl",  "X2ys",  "m1",    "m10",  "m12",   "m14",   "m15") 
 
-is.genind(y.gen.ind)
+#create genind object
+t<-df2genind(y, sep = "/")
+t
+summary(t)
 
-y.gen.ind@tab
+#test for Hardy-Weinberg equilibrium
+badger.hwt<- hw.test(t)
+badger.hwt
 
-temp <- inbreeding(y.gen.ind, res.type = )
+#Compute the mean inbreeding for each individual...
+temp<- inbreeding(t)
+class(temp)
 head(names(temp))
-Fbar<- sapply(temp, mean)
+head(temp[[1]],20)
+
+# temp is a list of values sampled from the likelihood distribution of each individual; 
+# means values are obtained for all individuals using sapply:
+
+Fbar <- sapply(temp, mean)
 hist(Fbar, col="firebrick", main= "Average inbreeding in badgers")
+gene.data.info$f_inbreed<-Fbar
 
-toto<-summary(y.gen.ind)
-toto
-
-gene.data.info$Inbreed<-Fbar
-rm(temp)
-rm(toto)
-rm(y)
-rm(gene.data)
+saveRDS(gene.data.info, file="Gene.info.rds")
+ 
