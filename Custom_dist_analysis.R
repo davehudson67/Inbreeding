@@ -2,6 +2,7 @@
 library(nimble)
 library(coda)
 library(mcmcplots)
+library(lamW)
 
 source("Dist_Siler.R")
 
@@ -9,10 +10,8 @@ CH<-readRDS("CP.CJS_array.rds")
 age<-readRDS("CP.age_array.rds")
 tKD<-readRDS("CP.dead.rds")
 CP.CVdata<-readRDS("CP.CVdata.rds")
-f<-readRDS("CP.f.rds")
-
-CH[260,53]<-1
-CH[99,80]<-1
+f<-as.numeric(readRDS("CP.f.rds"))
+names(f)<-NULL
 
 #scale inbreeding
 inbreed<- scale(CP.CVdata$f_inbreed)
@@ -26,7 +25,8 @@ names(tB) <- NULL
 tM <- ifelse(is.na(tKD), ncol(CH), tKD)
 
 ## extract last alive time
-tL <- apply(CH, 1, function(x) max(which(x == 1)))
+tL <- as.numeric(apply(CH, 1, function(x) max(which(x == 1))))
+names(tL)<-NULL
 
 ## normalise to survival times
 ## (necessary at the moment due to censoring
@@ -36,7 +36,9 @@ tL <- tL - tB
 tKD <- tKD - tB
 
 ## define censoring matrices
-cint <- cbind(tL, tM)
+cint <- cbind(tL, tKD)
+cint[is.na(tKD), 2] <- cint[is.na(tKD), 1]
+cint[is.na(tKD), 1] <- 0
 censored <- ifelse(!is.na(tKD), 1, 2)
 tD <- rep(NA, length(tKD))
 dind <- rep(1, length(tKD))
@@ -49,10 +51,9 @@ names(y) <- NULL
 nind <- length(y)
 
 ## set up initial values
-tinit <- apply(cint, 1, function(x) {
-    runif(1, x[1], x[2])
-})
-
+#tinit <- apply(cint, 1, function(x) {
+#    runif(1, x[1], x[2])
+#})
 
 ## code for NIMBLE model with censoring
 CJS.code <- nimbleCode({
@@ -62,11 +63,11 @@ CJS.code <- nimbleCode({
       
         ## likelihood for interval-truncated Siler
         censored[i] ~ dinterval(tD[i], cint[i, ])
-        tD[i] ~ dsiler(a1, a2, b1, b2, c)
-        b2 <- beta0.b2 + (beta1.b2 *  inbreed[i])
+        tD[i] ~ dsiler(a1, a2, b1, b2[i], c)
+        b2[i] <- exp(beta0.b2 + (beta1.b2 *  inbreed[i]))
         
         ## sampling component
-        pd[i] <- exp(y[i] * log(mean.p) + (min(floor(tD[i]), cint[i, 2]) - y[i]) * log(1 - mean.p))
+        pd[i] <- exp(y[i] * log(mean.p) + (min(floor(tD[i]), tM[i]) - y[i]) * log(1 - mean.p))
         dind[i] ~ dbern(pd[i])
     }
 
@@ -86,7 +87,7 @@ CJS.Consts <- list(nind = nind)
 CJS.data <- list(y = y, cint = cint, 
     censored = censored, tD = tD, dind = dind, inbreed=inbreed)
 CJS.inits <- list(
-    tD = tinit,
+    #tD = tinit,
     a1 = 0.1, 
     a2 = 0.1, 
     b1 = 0.1,
@@ -104,8 +105,8 @@ cCJSModel <- compileNimble(CJSModel, showCompilerOutput = TRUE)
 
 ## try with adaptive slice sampler
 CJSconfig <- configureMCMC(cCJSModel, monitors = c("a1", "a2", "b1", "beta0.b2", "beta1.b2", "c", "mean.p"), thin = 1)
-CJSconfig$removeSamplers(c("a1", "a2", "b1", "c","beta0.b2", "beta1.b2"))
-CJSconfig$addSampler(target = c("a1", "a2", "b1", "c", "beta0.b2", "beta1.b2"), type = 'AF_slice')
+CJSconfig$removeSamplers(c("a1", "a2", "b1", "c"))
+CJSconfig$addSampler(target = c("a1", "a2", "b1", "c"), type = 'AF_slice')
 
 #Check monitors and samplers
 CJSconfig$printMonitors()
@@ -117,7 +118,7 @@ cCJSbuilt <- compileNimble(CJSbuilt)
 
 #Run the model
 system.time(runAF <- runMCMC(cCJSbuilt, 
-    niter = 100000, 
+    niter = 10000, 
     nburnin = 2000, 
     nchains = 2, 
     progressBar = TRUE, 
