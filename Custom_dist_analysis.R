@@ -6,27 +6,16 @@ library(lamW)
 
 source("Dist_Siler.R")
 
-CH<-readRDS("CP.CJS_array.rds")
-#age<-readRDS("CP.age_array.rds")
-tKD<-readRDS("CP.dead.rds")
-CP.CVdata<-readRDS("CP.CVdata.rds")
-#f<-as.numeric(readRDS("CP.f.rds"))
-#names(f)<-NULL
-
-## inbreeding
-inbreed<- CP.CVdata$f_inbreed
-summary(inbreed)
-
-## read in data
-tB <- CP.CVdata$birth_yr
-names(tB) <- NULL
+#read data:
+CH<-med
+tKD<-hig.dead
+tB <- high.birth
 
 ## extract max possible death time
 tM <- ifelse(is.na(tKD), ncol(CH), tKD)
 
 ## extract last alive time
 tL <- as.numeric(apply(CH, 1, function(x) max(which(x == 1))))
-names(tL) <- NULL
 
 ## some checks
 stopifnot(all(tL > tB))
@@ -67,8 +56,7 @@ CJS.code <- nimbleCode({
       
         ## likelihood for interval-truncated Siler
         censored[i] ~ dinterval(tD[i], cint[i, ])
-        tD[i] ~ dsiler(a1, a2, b1, b2[i], c)
-        b2[i] <- exp(beta0.b2 + (beta1.b2 *  inbreed[i]))
+        tD[i] ~ dsiler(a1, a2, b1, b2, c)
         
         ## sampling component
         pd[i] <- exp(y[i] * log(mean.p) + (min(floor(tD[i]), tM[i]) - y[i]) * log(1 - mean.p))
@@ -79,18 +67,17 @@ CJS.code <- nimbleCode({
     a1 ~ dexp(1)
     a2 ~ dexp(1)
     b1 ~ dexp(1)
+    b2 ~ dexp(1)
     c ~ dexp(1)
     mean.p ~ dunif(0, 1)
     
-    beta0.b2 ~ dnorm(0,0.001)
-    beta1.b2 ~ dnorm(0,0.001)
 })
 
 
 ## set up other components of model
 CJS.Consts <- list(nind = nind, tM = tM)
 CJS.data <- list(y = y, cint = cint, 
-                 censored = censored, tD = tD, dind = dind, inbreed=inbreed)
+                 censored = censored, tD = tD, dind = dind)
 tinit <- apply(cbind(cint, censored), 1, function(x) {
   if(x[3] == 2) {
     y <- x[2] + rexp(1, 0.1)
@@ -104,8 +91,7 @@ CJS.inits <- list(
   a1 = 0.1, 
   a2 = 0.1, 
   b1 = 0.1,
-  beta0.b2 = -2.5,
-  beta1.b2 = 0,
+  b2 = 0.1,
   mean.p = 0.5,
   c = 0.05
 )
@@ -117,14 +103,15 @@ CJSModel <- nimbleModel(code = CJS.code, constants = CJS.Consts, data = CJS.data
 cCJSModel <- compileNimble(CJSModel, showCompilerOutput = TRUE)
 
 ## try with adaptive slice sampler
-CJSconfig <- configureMCMC(cCJSModel, monitors = c("a1", "a2", "b1", "beta0.b2", "beta1.b2", "c", "mean.p"), thin = 1)
-CJSconfig$removeSamplers(c("a1", "b1", "c", "beta0.b2", "beta1.b2", "a2"))
-CJSconfig$addSampler(target = c("a1", "b1", "c", "a2"), type = 'AF_slice')
-CJSconfig$addSampler(target = c("beta0.b2", "beta1.b2"), type = 'RW_block')
+CJSconfig <- configureMCMC(cCJSModel, monitors = c("a1", "a2", "b1", "b2", "c", "mean.p"), thin = 1)
+CJSconfig$removeSamplers(c("a1", "b1", "c", "b2", "a2"))
+CJSconfig$addSampler(target = c("a1", "b1", "c"), type = 'AF_slice')
+CJSconfig$addSampler(target = c("a2", "b2"), type = 'AF_slice')
+
 
 #Check monitors and samplers
 CJSconfig$printMonitors()
-CJSconfig$printSamplers(c("a1", "a2", "b1", "beta0.b2", "beta1.b2", "c"))
+CJSconfig$printSamplers(c("a1", "a2", "b1", "b2", "c"))
 
 #Build the model
 CJSbuilt <- buildMCMC(CJSconfig)
@@ -132,7 +119,7 @@ cCJSbuilt <- compileNimble(CJSbuilt)
 
 #Run the model
 system.time(runAF <- runMCMC(cCJSbuilt,  
-    niter = 10000, 
+    niter = 100000, 
     nburnin = 4000, 
     nchains = 2, 
     progressBar = TRUE, 
@@ -142,43 +129,96 @@ system.time(runAF <- runMCMC(cCJSbuilt,
 runAF$summary
 
 #Plot mcmcm
-samples <- runAF$samples
-mcmcplot(samples)
-png("traceAF%d.png")
-plot(samples)
-dev.off()
+high.samples <- runAF$samples
+mcmcplot(high.samples)
+#png("traceAF%d.png")
+#plot(samples)
+#dev.off()
 
-png("pairsAF%d.png")
-pairs(samples)
-dev.off()
+#png("pairsAF%d.png")
+#pairs(samples)
+#dev.off()
 
 ## save samples
-saveRDS(samples, "newSiler.rds")
+#saveRDS(samples, "newSiler.rds")
 
 #Set age variable (quarter years)
 x <- 0:80
-inbreed <-
 
 ## extract samples
-samples <- as.matrix(samples)[, 1:6]
+l.samples <- as.matrix(low.samples)[, 1:5]
+m.samples <- as.matrix(mid.samples)[, 1:5]
+h.samples <- as.matrix(high.samples)[, 1:5]
+
 
 #Siler Mortality rate
-mort <- apply(samples, 1, function(pars, x, inbreed) {
+l.mort <- apply(l.samples, 1, function(pars, x) {
     ## extract pars
     a1 <- pars[1]
     a2 <- pars[2]
     b1 <- pars[3]
-    b2 <- exp(pars[4] + (pars[5]*0.3))
-    c <- pars[6]
+    b2 <- pars[4]
+    c <- pars[5]
     
     ## return predictions
     exp(a1-(b1*x)) + c + exp(a2+(b2*x))
 }, x = x)
 
 ## extract mean and 95% intervals
-mort <- apply(mort, 1, function(x) {
+l.mort <- apply(l.mort, 1, function(x) {
     c(mean = mean(x), LCI = quantile(x, probs = 0.025), UCI = quantile(x, probs = 0.975))
 })
+
+m.mort <- apply(m.samples, 1, function(pars, x, inbreed) {
+  ## extract pars
+  a1 <- pars[1]
+  a2 <- pars[2]
+  b1 <- pars[3]
+  b2 <- pars[4]
+  c <- pars[5]
+  
+  ## return predictions
+  exp(a1-(b1*x)) + c + exp(a2+(b2*x))
+}, x = x)
+
+## extract mean and 95% intervals
+m.mort <- apply(m.mort, 1, function(x) {
+  c(mean = mean(x), LCI = quantile(x, probs = 0.025), UCI = quantile(x, probs = 0.975))
+})
+
+h.mort <- apply(h.samples, 1, function(pars, x) {
+  ## extract pars
+  a1 <- pars[1]
+  a2 <- pars[2]
+  b1 <- pars[3]
+  b2 <- pars[4]
+  c <- pars[5]
+  
+  ## return predictions
+  exp(a1-(b1*x)) + c + exp(a2+(b2*x))
+}, x = x)
+
+## extract mean and 95% intervals
+h.mort <- apply(h.mort, 1, function(x) {
+  c(mean = mean(x), LCI = quantile(x, probs = 0.025), UCI = quantile(x, probs = 0.975))
+})
+
+l.mort<-as.data.frame(t(l.mort))
+l.mort$age<-seq(0:80)
+l.mort$inb<-"low"
+m.mort<-as.data.frame(t(m.mort))
+m.mort$age<-seq(0:80)
+m.mort$inb<-"mid"
+h.mort<-as.data.frame(t(h.mort))
+h.mort$age<-seq(0:80)
+h.mort$inb<-"high"
+
+inb.samples<-bind_rows(l.mort, m.mort, h.mort)
+
+ggplot(inb.samples, aes(x=age, y=mean, col=inb)) +
+  geom_line()
+
+
 
 #Siler survival function
 surv <- apply(samples, 1, function(pars, x) {
@@ -204,11 +244,11 @@ pdf("survcurves.pdf", width = 10, height = 5)
 par(mfrow = c(1, 2))
 
 #Draw mortality curve
-plot(x, mort[1, ], type = 'l', main = "Hazard function")
-lines(x, mort[2, ], lty = 2)
-lines(x, mort[3, ], lty = 2)
+plot(x, h.mort[1, ], type = 'l', main = "Hazard function")
+lines(x, l.mort[2, ], lty = 2)
+lines(x, l.mort[3, ], lty = 2)
 
- #Draw survival curve
+#Draw survival curve
 plot(x, surv[1, ], type = "l", main = "Survivor function")
 lines(x, surv[2, ], lty = 2)
 lines(x, surv[3, ], lty = 2)
