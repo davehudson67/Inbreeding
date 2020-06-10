@@ -7,15 +7,14 @@ library(lamW)
 source("Dist_Siler.R")
 
 CH<-readRDS("CP.CJS_array.rds")
-age<-readRDS("CP.age_array.rds")
+#age<-readRDS("CP.age_array.rds")
 tKD<-readRDS("CP.dead.rds")
 CP.CVdata<-readRDS("CP.CVdata.rds")
-f<-as.numeric(readRDS("CP.f.rds"))
-names(f)<-NULL
+#f<-as.numeric(readRDS("CP.f.rds"))
+#names(f)<-NULL
 
-#scale inbreeding
+## inbreeding
 inbreed<- CP.CVdata$f_inbreed
-inbreed<- as.vector(inbreed)
 summary(inbreed)
 
 ## read in data
@@ -60,7 +59,6 @@ stopifnot(all(tM >= y))
 ## set up nind
 nind <- length(y)
 
-summary(inbreed)
 ## code for NIMBLE model with censoring
 CJS.code <- nimbleCode({
 
@@ -134,7 +132,7 @@ cCJSbuilt <- compileNimble(CJSbuilt)
 
 #Run the model
 system.time(runAF <- runMCMC(cCJSbuilt,  
-    niter = 100000, 
+    niter = 10000, 
     nburnin = 4000, 
     nchains = 2, 
     progressBar = TRUE, 
@@ -159,18 +157,19 @@ saveRDS(samples, "newSiler.rds")
 
 #Set age variable (quarter years)
 x <- 0:80
+inbreed <-
 
 ## extract samples
-samples <- as.matrix(samples)[, 1:5]
+samples <- as.matrix(samples)[, 1:6]
 
 #Siler Mortality rate
-mort <- apply(samples, 1, function(pars, x) {
+mort <- apply(samples, 1, function(pars, x, inbreed) {
     ## extract pars
     a1 <- pars[1]
     a2 <- pars[2]
     b1 <- pars[3]
-    b2 <- pars[4]
-    c <- pars[5]
+    b2 <- exp(pars[4] + (pars[5]*0.3))
+    c <- pars[6]
     
     ## return predictions
     exp(a1-(b1*x)) + c + exp(a2+(b2*x))
@@ -209,7 +208,7 @@ plot(x, mort[1, ], type = 'l', main = "Hazard function")
 lines(x, mort[2, ], lty = 2)
 lines(x, mort[3, ], lty = 2)
 
-#Draw survival curve
+ #Draw survival curve
 plot(x, surv[1, ], type = "l", main = "Survivor function")
 lines(x, surv[2, ], lty = 2)
 lines(x, surv[3, ], lty = 2)
