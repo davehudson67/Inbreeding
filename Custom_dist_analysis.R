@@ -14,8 +14,9 @@ f<-as.numeric(readRDS("CP.f.rds"))
 names(f)<-NULL
 
 #scale inbreeding
-inbreed<- scale(CP.CVdata$f_inbreed)
+inbreed<- CP.CVdata$f_inbreed
 inbreed<- as.vector(inbreed)
+summary(inbreed)
 
 ## read in data
 tB <- CP.CVdata$birth_yr
@@ -26,19 +27,25 @@ tM <- ifelse(is.na(tKD), ncol(CH), tKD)
 
 ## extract last alive time
 tL <- as.numeric(apply(CH, 1, function(x) max(which(x == 1))))
-names(tL)<-NULL
+names(tL) <- NULL
+
+## some checks
+stopifnot(all(tL > tB))
+stopifnot(all(tKD[!is.na(tKD)] > tL[!is.na(tKD)]))
+stopifnot(all(tM >= tL))
 
 ## normalise to survival times
 ## (necessary at the moment due to censoring
 ## constraints)
 tM <- tM - tB
-tL <- tL - tB
 tKD <- tKD - tB
+tL <- tL - tB
 
 ## define censoring matrices
 cint <- cbind(tL, tKD)
 cint[is.na(tKD), 2] <- cint[is.na(tKD), 1]
 cint[is.na(tKD), 1] <- 0
+colnames(cint) <- NULL
 censored <- ifelse(!is.na(tKD), 1, 2)
 tD <- rep(NA, length(tKD))
 dind <- rep(1, length(tKD))
@@ -47,14 +54,13 @@ dind <- rep(1, length(tKD))
 y <- apply(CH, 1, sum)
 names(y) <- NULL
 
+## some checks
+stopifnot(all(tM >= y))
+
 ## set up nind
 nind <- length(y)
 
-## set up initial values
-#tinit <- apply(cint, 1, function(x) {
-#    runif(1, x[1], x[2])
-#})
-
+summary(inbreed)
 ## code for NIMBLE model with censoring
 CJS.code <- nimbleCode({
 
@@ -82,19 +88,28 @@ CJS.code <- nimbleCode({
     beta1.b2 ~ dnorm(0,0.001)
 })
 
+
 ## set up other components of model
-CJS.Consts <- list(nind = nind)
+CJS.Consts <- list(nind = nind, tM = tM)
 CJS.data <- list(y = y, cint = cint, 
-    censored = censored, tD = tD, dind = dind, inbreed=inbreed)
+                 censored = censored, tD = tD, dind = dind, inbreed=inbreed)
+tinit <- apply(cbind(cint, censored), 1, function(x) {
+  if(x[3] == 2) {
+    y <- x[2] + rexp(1, 0.1)
+  } else {
+    y <- runif(1, x[1], x[2])
+  }
+  y
+})
 CJS.inits <- list(
-    #tD = tinit,
-    a1 = 0.1, 
-    a2 = 0.1, 
-    b1 = 0.1,
-    beta0.b2 = 0,
-    beta1.b2 = 0,
-    mean.p = runif(1, 0, 1),
-    c = 0.05
+  tD = tinit,
+  a1 = 0.1, 
+  a2 = 0.1, 
+  b1 = 0.1,
+  beta0.b2 = -2.5,
+  beta1.b2 = 0,
+  mean.p = 0.5,
+  c = 0.05
 )
 
 ## define the model, data, inits and constants
@@ -105,8 +120,9 @@ cCJSModel <- compileNimble(CJSModel, showCompilerOutput = TRUE)
 
 ## try with adaptive slice sampler
 CJSconfig <- configureMCMC(cCJSModel, monitors = c("a1", "a2", "b1", "beta0.b2", "beta1.b2", "c", "mean.p"), thin = 1)
-CJSconfig$removeSamplers(c("a1", "a2", "b1", "c"))
-CJSconfig$addSampler(target = c("a1", "a2", "b1", "c"), type = 'AF_slice')
+CJSconfig$removeSamplers(c("a1", "b1", "c", "beta0.b2", "beta1.b2", "a2"))
+CJSconfig$addSampler(target = c("a1", "b1", "c", "a2"), type = 'AF_slice')
+CJSconfig$addSampler(target = c("beta0.b2", "beta1.b2"), type = 'RW_block')
 
 #Check monitors and samplers
 CJSconfig$printMonitors()
@@ -117,9 +133,9 @@ CJSbuilt <- buildMCMC(CJSconfig)
 cCJSbuilt <- compileNimble(CJSbuilt)
 
 #Run the model
-system.time(runAF <- runMCMC(cCJSbuilt, 
-    niter = 10000, 
-    nburnin = 2000, 
+system.time(runAF <- runMCMC(cCJSbuilt,  
+    niter = 100000, 
+    nburnin = 4000, 
     nchains = 2, 
     progressBar = TRUE, 
     summary = TRUE, 
@@ -128,8 +144,8 @@ system.time(runAF <- runMCMC(cCJSbuilt,
 runAF$summary
 
 #Plot mcmcm
-samples.inbreed.uninf <- runAF$samples
-mcmcplot(samples.inbreed.uninf)
+samples <- runAF$samples
+mcmcplot(samples)
 png("traceAF%d.png")
 plot(samples)
 dev.off()
