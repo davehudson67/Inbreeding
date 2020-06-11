@@ -7,9 +7,9 @@ library(lamW)
 source("Dist_Siler.R")
 
 #read data:
-CH<-med
-tKD<-hig.dead
-tB <- high.birth
+CH<-low
+tKD<-low.dead
+tB <- low.birth
 
 ## extract max possible death time
 tM <- ifelse(is.na(tKD), ncol(CH), tKD)
@@ -129,8 +129,8 @@ system.time(runAF <- runMCMC(cCJSbuilt,
 runAF$summary
 
 #Plot mcmcm
-high.samples <- runAF$samples
-mcmcplot(high.samples)
+hom.samples <- runAF$samples
+mcmcplot(hom.samples)
 #png("traceAF%d.png")
 #plot(samples)
 #dev.off()
@@ -146,9 +146,9 @@ mcmcplot(high.samples)
 x <- 0:80
 
 ## extract samples
-l.samples <- as.matrix(low.samples)[, 1:5]
-m.samples <- as.matrix(mid.samples)[, 1:5]
-h.samples <- as.matrix(high.samples)[, 1:5]
+l.samples <- as.matrix(het.samples)[, 1:5]
+#m.samples <- as.matrix(mid.samples)[, 1:5]
+h.samples <- as.matrix(hom.samples)[, 1:5]
 
 
 #Siler Mortality rate
@@ -205,20 +205,23 @@ h.mort <- apply(h.mort, 1, function(x) {
 
 l.mort<-as.data.frame(t(l.mort))
 l.mort$age<-seq(0:80)
-l.mort$inb<-"low"
+l.mort$inb<-"het"
 m.mort<-as.data.frame(t(m.mort))
 m.mort$age<-seq(0:80)
 m.mort$inb<-"mid"
 h.mort<-as.data.frame(t(h.mort))
 h.mort$age<-seq(0:80)
-h.mort$inb<-"high"
+h.mort$inb<-"hom"
 
-inb.samples<-bind_rows(l.mort, m.mort, h.mort)
+inb.samples<-bind_rows(l.mort, h.mort)
+
+colnames(inb.samples)<-c("mean", "lwr", "upr","age", "inb")
 
 ggplot(inb.samples, aes(x=age, y=mean, col=inb)) +
-  geom_line()
+  geom_line() +
+  geom_ribbon(data=inb.samples,aes(ymin=lwr,ymax=upr, fill=inb),alpha=0.3)
 
-
+hist(gene$mlh)
 
 #Siler survival function
 surv <- apply(samples, 1, function(pars, x) {
