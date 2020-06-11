@@ -6,8 +6,8 @@ CH<- read.table("all.diag.results.txt", header = TRUE, row.names = NULL)
 gene<-as.data.table(readRDS("Gene.info.rds"))
 
 #Categorise inbreed coefficient
-gene<-arrange(gene, f_inbreed)
-gene$Inb.cat<-as.factor(rep(1:3, times=c(644,644,645)))
+gene<-arrange(gene, mlh)
+gene$Inb.cat<-as.factor(rep(1:2, times=c(966,967)))
 
 CH$date <- as.character(CH$date)
 CH$date<- as.Date(CH$date, format="%d/%m/%Y")
@@ -19,10 +19,12 @@ CH<- as.data.table(CH)
 setindexv(CH, 'ID')
 setindex(gene.data, 'ID')
 CH <- merge(CH, gene.data, by='ID')
-
 CH<- CH[,c(1:6,13:19,31:32)]
 summary(CH)
+CH<-arrange(CH, Inb.cat)
 CH<-droplevels(CH)
+CH<-as.data.table(CH)
+
 
 #Keep only badgers with known age/sex
 CH<-CH[complete.cases(CH[,8])] #sex
@@ -114,30 +116,32 @@ summary(CH)
 summary(CH)
 
 CH <- as.data.table(CH)
-CH <- droplevels(CH)
-summary(CH)
+CH.CP<-as.data.frame(CH[CH$status.cub=="CPm" | CH$status.cub=="CPf"])
+CH.NP<-as.data.frame(CH[CH$status=="NPm" | CH$status=="NPf"])
+CH.CP <- droplevels(CH.CP)
+summary(CH.CP)
 
 #Split trap month into 4 different 'seasons', year split into 4 quarters
-CH$trap_season<- ifelse(CH$trap_month==1| CH$trap_month==2|CH$trap_month==3, "1", 0)
-CH$trap_season<- ifelse(CH$trap_month==6|CH$trap_month==4|CH$trap_month==5, "2", CH$trap_season)
-CH$trap_season<- ifelse(CH$trap_month==9|CH$trap_month==7|CH$trap_month==8, "3", CH$trap_season)
-CH$trap_season<- ifelse(CH$trap_month==12|CH$trap_month==10|CH$trap_month==11, "4", CH$trap_season)
+CH.CP$trap_season<- ifelse(CH.CP$trap_month==1| CH.CP$trap_month==2|CH.CP$trap_month==3, "1", 0)
+CH.CP$trap_season<- ifelse(CH.CP$trap_month==6|CH.CP$trap_month==4|CH.CP$trap_month==5, "2", CH.CP$trap_season)
+CH.CP$trap_season<- ifelse(CH.CP$trap_month==9|CH.CP$trap_month==7|CH.CP$trap_month==8, "3", CH.CP$trap_season)
+CH.CP$trap_season<- ifelse(CH.CP$trap_month==12|CH.CP$trap_month==10|CH.CP$trap_month==11, "4", CH.CP$trap_season)
 
 #Create occasion variable by combining capture year and trap season
-CH <- unite(CH, "occasion", captureyear, trap_season, sep = ".", remove = FALSE)
-CH$occasion <- as.factor(CH$occasion)
-CH$occasion <- as.numeric(CH$occasion)
+CH.CP <- unite(CH.CP, "occasion", captureyear, trap_season, sep = ".", remove = FALSE)
+CH.CP$occasion <- as.factor(CH.CP$occasion)
+CH.CP$occasion <- as.numeric(CH.CP$occasion)
 
-CH$death <- ifelse(CH$pm=="Yes", CH$occasion, NA)
-CH<- as.data.table(CH)
-CH<- arrange(CH, ID, desc(date))
-for (i in 1:nrow(CH)){
-  ifelse(CH$ID[i]==(CH$ID[i-1]),CH$death[i]<-CH$death[i-1], CH$death[i])
+CH.CP$death <- ifelse(CH.CP$pm=="Yes", CH.CP$occasion, NA)
+CH.CP<- as.data.table(CH.CP)
+CH.CP<- arrange(CH.CP, ID, desc(date))
+for (i in 1:nrow(CH.CP)){
+  ifelse(CH.CP$ID[i]==(CH.CP$ID[i-1]),CH.CP$death[i]<-CH.CP$death[i-1], CH.CP$death[i])
 }
 
-summary(CH)
+summary(CH.CP)
 #Get rid of redundant levels and variables
-CH <- droplevels(CH)
+CH.CP <- droplevels(CH.CP)
 
 #See how many occasions each badger is caught
 #counts<-CH.CP %>% 
@@ -160,56 +164,56 @@ CH <- droplevels(CH)
 
 #Create age in quarter years variable
 #Create first line for badger 1
-CH<- arrange(CH, ID, occasion)
-CH$age_quart.yr<- 1
+CH.CP<- arrange(CH.CP, ID, occasion)
+CH.CP$age_quart.yr<- 1
 #Continue for loop for all other badgers
-for (i in 1:nrow(CH)){
-  ifelse(CH$ID[i]!=(CH$ID[i-1]), CH$age_quart.yr[i]<-1,
-         CH$age_quart.yr[i]<-((CH$age_quart.yr[i-1])+(CH$occasion[i]-CH$occasion[i-1])))
+for (i in 1:nrow(CH.CP)){
+  ifelse(CH.CP$ID[i]!=(CH.CP$ID[i-1]), CH.CP$age_quart.yr[i]<-1,
+         CH.CP$age_quart.yr[i]<-((CH.CP$age_quart.yr[i-1])+(CH.CP$occasion[i]-CH.CP$occasion[i-1])))
 }
 
 #Remove duplicate badgers (Same Badger caught in the same season)
-CH<-as.data.table(CH)
-CH$duplicate<- ifelse(duplicated(CH[,c(1,7)]), CH$duplicate<-1, CH$duplicate<- 0)
-CH<-CH[CH$duplicate==0]
-CH$duplicate<- NULL
-summary(CH)
-CH <- droplevels(CH)
+CH.CP<-as.data.table(CH.CP)
+CH.CP$duplicate<- ifelse(duplicated(CH.CP[,c(1,7)]), CH.CP$duplicate<-1, CH.CP$duplicate<- 0)
+CH.CP<-CH.CP[CH.CP$duplicate==0]
+CH.CP$duplicate<- NULL
+summary(CH.CP)
+CH.CP <- droplevels(CH.CP)
 
 #See how many occasions each badger is caught
-counts<-CH %>% 
+counts<-CH.CP %>% 
   group_by(ID) %>%
   summarise(no_rows = length(ID)) %>%
   tbl_df %>% print(n=nrow(.))
 
-CH<- data.table(CH)
+CH.CP<- data.table(CH.CP)
 counts<- data.table(counts)
-setindexv(CH, c('ID'))
+setindexv(CH.CP, c('ID'))
 setindexv(counts, c('ID'))
-CH<- merge(CH, counts, by="ID")
+CH.CP<- merge(CH.CP, counts, by="ID")
 
 #See if any counts are <=2 and one of them is pm
-CH$toofew<- as.factor(ifelse(CH$no_rows<=1 & CH$knowndeath==1,1,0))
-summary(CH)
-CH<-CH[CH$toofew==0]
+CH.CP$toofew<- as.factor(ifelse(CH.CP$no_rows<=1 & CH.CP$knowndeath==1,1,0))
+summary(CH.CP)
+CH.CP<-CH.CP[CH.CP$toofew==0]
 rm(counts)
-CH <- droplevels(CH)
+CH.CP <- droplevels(CH.CP)
 
-#CH2<- length(CH[,if(.N>2) .SD, by=ID])
+#CH.CP2<- length(CH.CP[,if(.N>2) .SD, by=ID])
 
 #Create an age array of remaining badgers
-CH$occasion<-as.factor(CH$occasion)
-CP.age.array<- array(NA, dim=c(length(levels(CH$ID)), length(levels(CH$occasion))))
-rownames(CP.age.array)<- levels(CH$ID)
-colnames(CP.age.array)<- levels(CH$occasion)
+CH.CP$occasion<-as.factor(CH.CP$occasion)
+CP.age.array<- array(NA, dim=c(length(levels(CH.CP$ID)), length(levels(CH.CP$occasion))))
+rownames(CP.age.array)<- levels(CH.CP$ID)
+colnames(CP.age.array)<- levels(CH.CP$occasion)
 
 #Total number of observations
-n.obs<- length(levels(CH$ID))*length(levels(CH$occasion))
-CH$trap_season<-as.numeric(CH$trap_season)
+n.obs<- length(levels(CH.CP$ID))*length(levels(CH.CP$occasion))
+CH.CP$trap_season<-as.numeric(CH.CP$trap_season)
 
 #for loop to create the age array
 for(i in 1:n.obs){
-  CP.age.array[CH$ID[i], CH$occasion[i]]<- CH$age_quart.yr[i]+CH$trap_season[i]-1
+  CP.age.array[CH.CP$ID[i], CH.CP$occasion[i]]<- CH.CP$age_quart.yr[i]+CH.CP$trap_season[i]-1
 }
 
 #Create a vector with occasion of first capture
@@ -222,7 +226,7 @@ CP.age.array <- t(apply(CP.age.array, 1, function(x){
   x
 }))
 
-CH$birth_yr<-as.numeric(CH$occasion)-CH$age_quart.yr
+CH.CP$birth_yr<-as.numeric(CH.CP$occasion)-CH.CP$age_quart.yr
 
 #Change NA in age array to 0 (Bugs doesnt like NAs)
 #CP.age.array[is.na(CP.age.array)] <- 0
@@ -233,23 +237,26 @@ CH$birth_yr<-as.numeric(CH$occasion)-CH$age_quart.yr
 #3 = positive culture from one site
 #4 = positive culture from multiple sites
 #5 = dead
-CH$disease_state <- 1
-CH$disease_state <- ifelse(CH$statpak==1 | CH$brock==1,2,CH$disease_state)
-CH$disease_state <- ifelse(CH$cult_SUM==1,3,CH$disease_state)
-CH$disease_state <- ifelse(CH$cult_SUM>1,4,CH$disease_state)
-CH$disease_state <- ifelse(CH$pm=="Yes",5, CH$disease_state)
-CH$disease_state <- as.factor(CH$disease_state)
-#CHeck disease state variable
-summary(CH$disease_state)
+CH.CP$disease_state <- 1
+CH.CP$disease_state <- ifelse(CH.CP$statpak==1 | CH.CP$brock==1,2,CH.CP$disease_state)
+CH.CP$disease_state <- ifelse(CH.CP$cult_SUM==1,3,CH.CP$disease_state)
+CH.CP$disease_state <- ifelse(CH.CP$cult_SUM>1,4,CH.CP$disease_state)
+CH.CP$disease_state <- ifelse(CH.CP$pm=="Yes",5, CH.CP$disease_state)
+CH.CP$disease_state <- as.factor(CH.CP$disease_state)
+#CH.CPeck disease state variable
+summary(CH.CP$disease_state)
+
+#Order badgers into levels of mlh
+CH.CP<-arrange(CH.CP, Inb.cat, ID)
 
 #Create a state array of remaining badgers
-CP.state.array<- array(0, dim=c(length(levels(CH$ID)), length(levels(CH$occasion))))
-rownames(CP.state.array)<- levels(CH$ID)
-colnames(CP.state.array)<- levels(CH$occasion)
+CP.state.array<- array(0, dim=c(length(levels(CH.CP$ID)), length(levels(CH.CP$occasion))))
+rownames(CP.state.array)<- levels(CH.CP$ID)
+colnames(CP.state.array)<- levels(CH.CP$occasion)
 
 #for loop to create the state array
 for(i in 1:n.obs){
-  CP.state.array[CH$ID[i], CH$occasion[i]]<- CH$disease_state[i]
+  CP.state.array[CH.CP$ID[i], CH.CP$occasion[i]]<- CH.CP$disease_state[i]
 }
 
 #Recode 'not seen' - 0's to 5
@@ -261,27 +268,40 @@ for(i in 1:n.obs){
 CP.CJS.array<- CP.state.array
 CP.CJS.array[CP.CJS.array>=5] <- 0
 CP.CJS.array[CP.CJS.array>=1] <- 1
+order<-rownames(CP.CJS.array)
+CP.CJS.array<-as.data.table(CP.CJS.array)
+CP.CJS.array$ID<-order
 
 #Covariate data
-CP.CVdata<- data.table(CH)
-#CP.CVdata<- arrange(CP.CVdata, ID, -as.numeric(occasion))
+CP.CVdata<- data.table(CH.CP)
+CP.CVdata<- arrange(CP.CVdata, Inb.cat, ID)
 CP.CVdata<- distinct(CP.CVdata, CP.CVdata$ID, .keep_all = TRUE)
+
+library(wrapr)
+p<- match_order(CP.CJS.array$ID, CP.CVdata$ID)
+CP.CJS.array<-CP.CJS.array[p,,drop=FALSE]
 
 CP.dead <- CP.CVdata$death
 
+#saveRDS(CP.age.array, file="CP.age_array.rds")
+#saveRDS(CP.CVdata, file="CP.CVdata.rds")
+#saveRDS(CP.CJS.array, file="CP.CJS_array.rds")
+#saveRDS(CP.f, file = "CP.f.rds")
+#saveRDS(CP.dead, file="CP.dead.rds")
+
 #Split into inbreeding categories
 summary(CP.CVdata)
-low<-CP.CJS.array[1:585,]
-mid<-CP.CJS.array[586:1160,]
-high<-CP.CJS.array[1161:1748,]
+low<-CP.CJS.array[1:144,]
+#mid<-CP.CJS.array[586:1160,]
+high<-CP.CJS.array[145:293,]
 
-low.dead<-CP.dead[1:585]
-mid.dead<-CP.dead[586:1160]
-high.dead<-CP.dead[1161:1748]
+low.dead<-CP.dead[1:144]
+#mid.dead<-CP.dead[586:1160]
+high.dead<-CP.dead[145:293]
 
-low.birth<-CP.CVdata$birth_yr[1:585]
-mid.birth<-CP.CVdata$birth_yr[586:1160]
-high.birth<-CP.CVdata$birth_yr[1161:1748]
+low.birth<-CP.CVdata$birth_yr[1:144]
+#mid.birth<-CP.CVdata$birth_yr[586:1160]
+high.birth<-CP.CVdata$birth_yr[145:293]
 
 
 saveRDS(CP.age.array, file="CP.age_array.rds")
