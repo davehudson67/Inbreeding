@@ -47,4 +47,12 @@ hist(Fbar, col="firebrick", main= "Average inbreeding in badgers")
 gene.data.info$f_inbreed<-Fbar
 
 saveRDS(gene.data.info, file="Gene.info.rds")
- 
+
+
+##  USE InbreedR package
+library(inbreedR)
+inbreed.badger<-convert_raw(gene.data)
+mlh.badger<-MLH(inbreed.badger)
+summary(mlh.badger)
+gene.data.info$mlh<-mlh.badger
+gene<-gene.data.info
