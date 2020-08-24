@@ -10,8 +10,10 @@ rm(list=ls())
 #Add data ----------------------------------------------------------------------------------------------------------
 
 gene.data<- read.table("Gene_data.txt", header = TRUE)
+row.names(gene.data) <- gene.data$ID
 gene.data.info<- gene.data[1:7]
 gene.data<- gene.data[,8:51]
+
 #row.names(gene.data)<-gene.data$ID
 #remove extra info
 #gene.data<-gene.data[2:37]
@@ -29,12 +31,16 @@ t<-df2genind(y, sep = "/")
 t
 summary(t)
 
+#bartlett test for homogeneity of variances
+t2 <- summary(t)
+bartlett.test(list(t2$Hexp, t2$Hobs))
+
 #test for Hardy-Weinberg equilibrium
 badger.hwt<- hw.test(t)
 badger.hwt
 
 #Compute the mean inbreeding for each individual...
-temp<- inbreeding(t)
+temp<- inbreeding(t, N = 100)
 class(temp)
 head(names(temp))
 head(temp[[1]],20)

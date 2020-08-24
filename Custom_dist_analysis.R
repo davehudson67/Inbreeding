@@ -4,12 +4,13 @@ library(coda)
 library(mcmcplots)
 library(lamW)
 
+source("Dist_SilerNim.R")
 source("Dist_Siler.R")
 
 #read data:
-CH<-low
+CH<-low[,1:147]
 tKD<-low.dead
-tB <- low.birth
+tB<-low.birth
 
 ## extract max possible death time
 tM <- ifelse(is.na(tKD), ncol(CH), tKD)
@@ -39,7 +40,7 @@ tD <- rep(NA, length(tKD))
 dind <- rep(1, length(tKD))
 
 ## extract number of captures
-y <- apply(CH, 1, sum)
+y <- rowSums(CH)
 names(y) <- NULL
 
 ## some checks
@@ -49,14 +50,14 @@ stopifnot(all(tM >= y))
 nind <- length(y)
 
 ## code for NIMBLE model with censoring
-CJS.code <- nimbleCode({
+code <- nimbleCode({
 
     ## survival components for dead badgers
     for (i in 1:nind) {
       
         ## likelihood for interval-truncated Siler
         censored[i] ~ dinterval(tD[i], cint[i, ])
-        tD[i] ~ dsiler(a1, a2, b1, b2, c)
+        tD[i] ~ dsilerNim(a1, a2, b1, b2, c)
         
         ## sampling component
         pd[i] <- exp(y[i] * log(mean.p) + (min(floor(tD[i]), tM[i]) - y[i]) * log(1 - mean.p))
@@ -75,50 +76,76 @@ CJS.code <- nimbleCode({
 
 
 ## set up other components of model
-CJS.Consts <- list(nind = nind, tM = tM)
-CJS.data <- list(y = y, cint = cint, 
-                 censored = censored, tD = tD, dind = dind)
-tinit <- apply(cbind(cint, censored), 1, function(x) {
-  if(x[3] == 2) {
-    y <- x[2] + rexp(1, 0.1)
-  } else {
-    y <- runif(1, x[1], x[2])
+consts <- list(nind = nind, tM = tM)
+data <- list(y = y, cint = cint, 
+             censored = censored, tD = tD, dind = dind)
+
+## find overdispersed initial values
+tinitFn <- function(cint, censored) {
+  apply(cbind(cint, censored), 1, function(x) {
+    if(x[3] == 2) {
+      y <- x[2] + rexp(1, 1)
+    } else {
+      y <- runif(1, x[1], x[2])
+    }
+    y
+  })
+}
+initFn <- function(cint, censored) {
+  ## get ML estimates as initial values
+  optFn <- function(pars, t) {
+    if(any(pars < 0)) {
+      return(NA)
+    }
+    sum(dSiler(t, a1 = pars[1], a2 = pars[2], b1 = pars[3], b2 = pars[4], c = pars[5], log = TRUE))
   }
-  y
-})
-CJS.inits <- list(
-  tD = tinit,
-  a1 = 0.1, 
-  a2 = 0.1, 
-  b1 = 0.1,
-  b2 = 0.1,
-  mean.p = 0.5,
-  c = 0.05
-)
+  pars <- list(convergence = 1)
+  k <- 0
+  while(pars$convergence != 0 & k < 20) {
+    ## sample missing values
+    tD <- tinitFn(cint, censored)
+    pars <- optim(rexp(5, 10), optFn, t = tD, control = list(fnscale = -1))
+    k <- k + 1
+  }
+  if(k == 20) {
+    stop("Can't sample initial values")
+  }
+  pars <- pars$par
+  list(
+    tD = tD,
+    a1 = pars[1], 
+    a2 = pars[2], 
+    b1 = pars[3],
+    b2 = pars[4],
+    c = pars[5],
+    mean.p = runif(1, 0, 1)
+  )
+}
+
+inits <- initFn(cint, censored)
 
 ## define the model, data, inits and constants
-CJSModel <- nimbleModel(code = CJS.code, constants = CJS.Consts, data = CJS.data, inits = CJS.inits, name = "CJS")
+Model <- nimbleModel(code = code, constants = consts, data = data, inits = inits, name = "CMRModel")
 
 ## compile the model
-cCJSModel <- compileNimble(CJSModel, showCompilerOutput = TRUE)
+cModel <- compileNimble(Model, showCompilerOutput = TRUE)
 
 ## try with adaptive slice sampler
-CJSconfig <- configureMCMC(cCJSModel, monitors = c("a1", "a2", "b1", "b2", "c", "mean.p"), thin = 1)
-CJSconfig$removeSamplers(c("a1", "b1", "c", "b2", "a2"))
-CJSconfig$addSampler(target = c("a1", "b1", "c"), type = 'AF_slice')
-CJSconfig$addSampler(target = c("a2", "b2"), type = 'AF_slice')
-
+config <- configureMCMC(cModel, monitors = c("a1", "a2", "b1", "b2", "c", "mean.p"), thin = 1)
+config$removeSamplers(c("a1", "b1", "c", "b2", "a2"))
+config$addSampler(target = c("a1", "b1", "c"), type = 'AF_slice')
+config$addSampler(target = c("a2", "b2"), type = 'AF_slice')
 
 #Check monitors and samplers
-CJSconfig$printMonitors()
-CJSconfig$printSamplers(c("a1", "a2", "b1", "b2", "c"))
+config$printMonitors()
+config$printSamplers(c("a1", "a2", "b1", "b2", "c"))
 
 #Build the model
-CJSbuilt <- buildMCMC(CJSconfig)
-cCJSbuilt <- compileNimble(CJSbuilt)
+built <- buildMCMC(config)
+cbuilt <- compileNimble(built)
 
 #Run the model
-system.time(runAF <- runMCMC(cCJSbuilt,  
+system.time(runAF <- runMCMC(cbuilt,  
     niter = 100000, 
     nburnin = 4000, 
     nchains = 2, 
@@ -126,13 +153,19 @@ system.time(runAF <- runMCMC(cCJSbuilt,
     summary = TRUE, 
     samplesAsCodaMCMC = TRUE, 
     thin = 1))
+
 runAF$summary
+l.MCMC <- runAF
 
 #Plot mcmcm
-hom.samples <- runAF$samples
-mcmcplot(hom.samples)
+#het.samples <- runAF$samples
+#mid.samples <- runAF$samples
+hom.samples <- h.MCMC$samples
+het.samples <- l.MCMC$samples
+
+#mcmcplot(hom.samples)
 #png("traceAF%d.png")
-#plot(samples)
+plot(hom.samples)
 #dev.off()
 
 #png("pairsAF%d.png")
@@ -143,7 +176,7 @@ mcmcplot(hom.samples)
 #saveRDS(samples, "newSiler.rds")
 
 #Set age variable (quarter years)
-x <- 0:80
+x <- 0:60
 
 ## extract samples
 l.samples <- as.matrix(het.samples)[, 1:5]
@@ -204,13 +237,13 @@ h.mort <- apply(h.mort, 1, function(x) {
 })
 
 l.mort<-as.data.frame(t(l.mort))
-l.mort$age<-seq(0:80)
+l.mort$age<-seq(0:60)
 l.mort$inb<-"het"
 m.mort<-as.data.frame(t(m.mort))
-m.mort$age<-seq(0:80)
+m.mort$age<-seq(0:60)
 m.mort$inb<-"mid"
 h.mort<-as.data.frame(t(h.mort))
-h.mort$age<-seq(0:80)
+h.mort$age<-seq(0:60)
 h.mort$inb<-"hom"
 
 inb.samples<-bind_rows(l.mort, h.mort)
@@ -218,10 +251,70 @@ inb.samples<-bind_rows(l.mort, h.mort)
 colnames(inb.samples)<-c("mean", "lwr", "upr","age", "inb")
 
 ggplot(inb.samples, aes(x=age, y=mean, col=inb)) +
-  geom_line() +
+  geom_line() 
   geom_ribbon(data=inb.samples,aes(ymin=lwr,ymax=upr, fill=inb),alpha=0.3)
 
-hist(gene$mlh)
+## KL discrepancies between pdf of low and hihg inbreeding estimates
+#library(LaplacesDemon)
+
+h.a1<-h.MCMC$summary$all.chains[1,1]
+h.a2<-h.MCMC$summary$all.chains[2,1]
+h.b1<-h.MCMC$summary$all.chains[3,1]
+h.b2<-h.MCMC$summary$all.chains[4,1]
+h.c<-h.MCMC$summary$all.chains[5,1]
+
+l.a1<-l.MCMC$summary$all.chains[1,1]
+l.a2<-l.MCMC$summary$all.chains[2,1]
+l.b1<-l.MCMC$summary$all.chains[3,1]
+l.b2<-l.MCMC$summary$all.chains[4,1]
+l.c<-l.MCMC$summary$all.chains[5,1]
+
+
+low.dist <- dSiler(1:80, l.a1, l.a2, l.b1, l.b2, l.c)
+high.dist <- dSiler(1:80, h.a1, h.a2, h.b1, h.b2, h.c)
+K <- KLD(low.dist, high.dist)
+k <- K$intrinsic.discrepancy
+
+#McCulloch adjustment
+q <- (1 + (1 - exp(-2 * k)) ^ 0.5) / 2 
+q
+
+## KL discrepancies between parameters inbreeding estimates
+## check a1
+K <- KLD(l.samples[,1], h.samples[,1])
+k <- K$intrinsic.discrepancy
+#McCulloch adjustment
+q <- (1 + (1 - exp(-2 * k)) ^ 0.5) / 2 
+q
+
+## check a2
+K <- KLD(l.samples[,2], h.samples[,2])
+k <- K$intrinsic.discrepancy
+#McCulloch adjustment
+q <- (1 + (1 - exp(-2 * k)) ^ 0.5) / 2 
+q
+
+## check b1
+K <- KLD(l.samples[,3], h.samples[,3])
+k <- K$intrinsic.discrepancy
+#McCulloch adjustment
+q <- (1 + (1 - exp(-2 * k)) ^ 0.5) / 2 
+q
+
+## check b2
+K <- KLD(l.samples[,4], h.samples[,4])
+k <- K$intrinsic.discrepancy
+#McCulloch adjustment
+q <- (1 + (1 - exp(-2 * k)) ^ 0.5) / 2 
+q
+
+## check c
+K <- KLD(l.samples[,5], h.samples[,5])
+k <- K$intrinsic.discrepancy
+#McCulloch adjustment
+q <- (1 + (1 - exp(-2 * k)) ^ 0.5) / 2 
+q
+
 
 #Siler survival function
 surv <- apply(samples, 1, function(pars, x) {
