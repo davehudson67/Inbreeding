@@ -9,7 +9,7 @@ rm(list=ls())
 
 #Add data ----------------------------------------------------------------------------------------------------------
 
-gene.data<- read.table("Gene_data.txt", header = TRUE)
+gene.data<- read.table("Data/Gene_data.txt", header = TRUE)
 row.names(gene.data) <- gene.data$ID
 gene.data.info<- gene.data[1:7]
 gene.data<- gene.data[,8:51]
@@ -52,5 +52,5 @@ Fbar <- sapply(temp, mean)
 hist(Fbar, col="firebrick", main= "Average inbreeding in badgers")
 gene.data.info$f_inbreed<-Fbar
 
-saveRDS(gene.data.info, file="Gene.info.rds")
+saveRDS(gene.data.info, file="Data/Gene.info.rds")
  

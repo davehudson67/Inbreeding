@@ -4,13 +4,27 @@ library(coda)
 library(mcmcplots)
 library(lamW)
 
-source("Dist_SilerNim.R")
-source("Dist_Siler.R")
+source("Distributions/Siler/Dist_SilerNim.R")
+source("Distributions/Siler/Dist_Siler.R")
 
-#read data:
-CH<-low[,1:147]
-tKD<-low.dead
-tB<-low.birth
+## read data:
+CH.all <- as.data.table(readRDS("Data/CHCVall.rds"))
+#CH <- CH.all
+
+## select group
+levels(CH.all$status)
+levels(CH.all$status.cub)
+CH <- CH.all[CH.all$status == 'PF' | CH.all$status == 'PM'] #positive badgers
+#CH <- CH.all[CH.all$status.cub == 'CPF' | CH.all$status.cub == 'CPM'] #cub positive
+#CH <- CH.all[CH.all$status == 'NPF' | CH.all$status.cub == 'NPM'] #never positive
+
+## extract death and birth times
+tKD <- CH$death 
+tB <- CH$birth
+
+## remove extra variable from CH
+colnames(CH)
+CH <- CH[,31:183]
 
 ## extract max possible death time
 tM <- ifelse(is.na(tKD), ncol(CH), tKD)
@@ -91,6 +105,7 @@ tinitFn <- function(cint, censored) {
     y
   })
 }
+
 initFn <- function(cint, censored) {
   ## get ML estimates as initial values
   optFn <- function(pars, t) {
@@ -125,10 +140,10 @@ initFn <- function(cint, censored) {
 inits <- initFn(cint, censored)
 
 ## define the model, data, inits and constants
-Model <- nimbleModel(code = code, constants = consts, data = data, inits = inits, name = "CMRModel")
+model <- nimbleModel(code = code, constants = consts, data = data, inits = inits)
 
 ## compile the model
-cModel <- compileNimble(Model, showCompilerOutput = TRUE)
+cModel <- compileNimble(model, showCompilerOutput = TRUE)
 
 ## try with adaptive slice sampler
 config <- configureMCMC(cModel, monitors = c("a1", "a2", "b1", "b2", "c", "mean.p"), thin = 1)
@@ -165,7 +180,7 @@ het.samples <- l.MCMC$samples
 
 #mcmcplot(hom.samples)
 #png("traceAF%d.png")
-plot(hom.samples)
+plot(het.samples)
 #dev.off()
 
 #png("pairsAF%d.png")
