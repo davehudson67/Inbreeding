@@ -1,90 +1,36 @@
-
-## configureRJ:            modifies the MCMC configuration object, to make use of the following RJ samplers:
-## sampler_RJ_fixed_prior: proposes addition/removal for variable of interest, using a specified prior probability
-## sampler_RJ_indicator:   proposes transitions of a binary indicator variable, corresponding to a variable of interest
-## sampler_RJ_toggled:     samples the variable of interest using the original sampling configuration, when variable is "in the model"
-
-
-
-#' @rdname samplers
-#' @export
-#'
-sampler_RJ_fixed_prior <- nimbleFunction(
-    name = 'sampler_RJ_fixed_prior',
-    contains = sampler_BASE,
-    setup = function(model, mvSaved, target, control) {
-        ## control list extraction
-        proposalMean  <- control$mean
-        proposalScale <- control$scale
-        priorProb     <- control$priorProb
-        fixedValue    <- control$fixedValue
-        ## node list generation
-        calcNodes <- model$getDependencies(target)
-        calcNodesReduced <- model$getDependencies(target, self = FALSE)
-        ## numeric value generation
-        logRatioProbFixedOverProbNotFixed <- log(priorProb) - log(1-priorProb)
-    },
-    run = function() {
-        currentValue <- model[[target]]
-        if(currentValue == fixedValue) {  ## propose addition of target
-            currentLogProb <- model$getLogProb(calcNodesReduced)
-            proposalValue <- rnorm(1, proposalMean, proposalScale)
-            logProbForwardProposal <- dnorm(proposalValue, proposalMean, proposalScale, log = TRUE)
-            model[[target]] <<- proposalValue
-            proposalLogProb <- model$calculate(calcNodes)
-            logAcceptanceProb <- proposalLogProb - currentLogProb + logRatioProbFixedOverProbNotFixed - logProbForwardProposal
-        } else {                          ## propose removal of target
-            currentLogProb <- model$getLogProb(calcNodes)
-            logProbReverseProposal <- dnorm(currentValue, proposalMean, proposalScale, log = TRUE)
-            model[[target]] <<- fixedValue
-            model$calculate(calcNodes)
-            proposalLogProb <- model$getLogProb(calcNodesReduced)
-            logAcceptanceProb <- proposalLogProb - currentLogProb - logRatioProbFixedOverProbNotFixed + logProbReverseProposal
-        }
-        accept <- decide(logAcceptanceProb)
-        if(accept) { copy(from = model, to = mvSaved, row = 1, nodes = calcNodes, logProb = TRUE)
-        } else     { copy(from = mvSaved, to = model, row = 1, nodes = calcNodes, logProb = TRUE) }
-    },
-    methods = list(
-        reset = function() { }
-    )
-)
-
-
-
-#' @rdname samplers
-#' @export
-#' 
-sampler_RJ_indicator <- nimbleFunction(
-    name = 'sampler_RJ_indicator',
+## sampler for more than one variable
+sampler_RJ_indicator_multi <- nimbleFunction(
+    name = 'sampler_RJ_indicator_multi',
     contains = sampler_BASE,
     setup = function(model, mvSaved, target, control) {
         ## note: target is the indicator variable,
-        ## control$targetNode is the variable conditionally in the model
+        ## control$targetNodes are the variables conditionally in the model
         ## control list extraction
-        coefNode      <- control$targetNode
+        coefNodes     <- control$targetNodes
+        nCoefs        <- length(coefNodes)
+        if(nCoefs <= 1) stop("Need at least two targets for RJ_indicator_multi sampler.")
         proposalScale <- control$scale
         proposalMean  <- control$mean
         ## node list generation
-        calcNodes <- model$getDependencies(c(coefNode, target))
+        calcNodes <- model$getDependencies(c(coefNodes, target))
         calcNodesReduced <- model$getDependencies(target)
     },
     run = function() {
         currentIndicator <- model[[target]]
-        if(currentIndicator == 0) {   ## propose addition of coefNode
+        if(currentIndicator == 0) {   ## propose addition of coefNodes
             currentLogProb <- model$getLogProb(calcNodesReduced)
-            proposalCoef <- rnorm(1, proposalMean, proposalScale)
-            logProbForwardProposal <- dnorm(proposalCoef, proposalMean, proposalScale, log = TRUE)
+            proposalCoefs <- rnorm(nCoefs, proposalMean, proposalScale)
+            logProbForwardProposal <- sum(dnorm(proposalCoefs, proposalMean, proposalScale, log = TRUE))
             model[[target]] <<- 1
-            model[[coefNode]] <<- proposalCoef
+            values(model, coefNodes) <<- proposalCoefs
             proposalLogProb <- model$calculate(calcNodes)
             logAcceptanceProb <- proposalLogProb - currentLogProb - logProbForwardProposal
-        } else {                      ## propose removal of coefNode
+        } else {                      ## propose removal of coefNodes
             currentLogProb <- model$getLogProb(calcNodes)
-            currentCoef <- model[[coefNode]]
-            logProbReverseProposal <- dnorm(currentCoef, proposalMean, proposalScale, log = TRUE)
+            currentCoefs <- values(model, coefNodes)
+            logProbReverseProposal <- sum(dnorm(currentCoefs, proposalMean, proposalScale, log = TRUE))
+            values(model, coefNodes) <<- rep(0, nCoefs)
             model[[target]] <<- 0
-            model[[coefNode]] <<- 0
             model$calculate(calcNodes)
             logAcceptanceProb <- model$getLogProb(calcNodesReduced) - currentLogProb + logProbReverseProposal
         }
@@ -97,173 +43,8 @@ sampler_RJ_indicator <- nimbleFunction(
     )
 )
 
-
-
-#' @rdname samplers
-#' @export
-sampler_RJ_toggled <- nimbleFunction(
-    name = 'sampler_RJ_toggled',
-    contains = sampler_BASE,
-    setup = function(model, mvSaved, target, control) {
-        ## control list extraction
-        fixedValue  <- if(!is.null(control$fixedValue))  control$fixedValue  else 0
-        samplerType <- if(!is.null(control$samplerType)) control$samplerType else stop('must provide \'samplerType\' control list element to RJ_toggled sampler')
-        ## nested function and function list definitions
-        samplerFL <- nimbleFunctionList(sampler_BASE)
-        samplerFL[[1]] <- samplerType$buildSampler(model = model, mvSaved = mvSaved)
-    },
-    run = function() {
-        if(model[[target]] != fixedValue)
-            samplerFL[[1]]$run()
-    },
-    methods = list(
-        reset = function() {
-            samplerFL[[1]]$reset()
-        }
-    )
-)
-
-
-
-#' Configure Reversible Jump for Variable Selection
-#'
-#' Modifies an MCMC configuration object to perform a reversible jump MCMC sampling for variable selection, using a univariate normal proposal distribution.  Users can control the mean and scale of the proposal. This function supports two different types of model specification: with and without indicator variables.
-#'
-#' @param conf An \code{MCMCconf} object.
-#' @param targetNodes A character vector, specifying the nodes and/or variables for which variable selection is to be performed. Nodes may be specified in their indexed form, \code{'y[1, 3]'}. Alternatively, nodes specified without indexing will be expanded, e.g., \code{'x'} will be expanded to \code{'x[1]'}, \code{'x[2]'}, etc.
-#' @param indicatorNodes An optional character vector, specifying the indicator nodes and/or variables paired with \code{targetNodes}. Nodes may be specified in their indexed form, \code{'y[1, 3]'}. Alternatively, nodes specified without indexing will be expanded, e.g., \code{'x'} will be expanded to \code{'x[1]'}, \code{'x[2]'}, etc. Nodes must be provided consistently with \code{targetNodes}. See details.
-#' @param priorProb An optional value or vector of prior probabilities for each node to be in the model. See details.
-#' @param control An optional list of control arguments:
-#' \itemize{
-#' \item mean. The mean of the normal proposal distribution (default = 0).
-#' \item scale. The standard deviation of the normal proposal distribution (default = 1).
-#' \item fixedValue. Value for the variable when it is out of the model, which can be used only when \code{priorProb} is provided (default = 0). If specified when \code{indicatorNodes} is passed, a warning is given and \code{fixedValue} is ignored.
-#' }
-#'
-#' @return \code{NULL} \code{configureRJ} modifies the input MCMC configuration object in place.
-#'
-#' @details
-#'
-#' This function modifies the samplers in MCMC configuration object for each of the nodes provided in the \code{targetNodes} argument. To these elements two samplers are assigned: a reversible jump sampler to transition the variable in/out of the model, and a modified version of the original sampler, which performs updates only when the target node is already in the model.
-#'
-#' \code{configureRJ} can handle two different ways of writing a NIMBLE model, either with or without indicator variables. When using indicator variables, the \code{indicatorNodes} argument must be provided. Without indicator variables, the \code{priorProb} argument must be provided. In the latter case, the user can provide a non-zero value for \code{fixedValue} if desired.
-#'
-#' Note that this functionality is intended for variable selection in regression-style models but may be useful for other situations as well. At the moment, setting a variance component to zero and thereby removing a set of random effects that are explicitly part of a model will not work because MCMC sampling in that case would need to propose values for multiple parameters (the random effects), whereas the current functionality only proposes adding/removing a single model node.
-#' 
-#' @seealso \code{\link{samplers}} \code{\link{configureMCMC}}
-#' 
-#' @examples
-#' 
-#' \dontrun{
-#' 
-#' ## Linear regression with intercept and two covariates, using indicator variables
-#' 
-#' code <- nimbleCode({
-#'   beta0 ~ dnorm(0, sd = 100)
-#'   beta1 ~ dnorm(0, sd = 100)
-#'   beta2 ~ dnorm(0, sd = 100)
-#'   sigma ~ dunif(0, 100) 
-#'   z1 ~ dbern(psi)   ## indicator variable associated with beta1
-#'   z2 ~ dbern(psi)   ## indicator variable associated with beta2
-#'   psi ~ dunif(0, 1) ## hyperprior on inclusion probability
-#'   for(i in 1:N) {
-#'     Ypred[i] <- beta0 + beta1 * z1 * x1[i] + beta2 * z2 * x2[i]
-#'     Y[i] ~ dnorm(Ypred[i], sd = sigma)
-#'   }
-#' })
-#' 
-#' ## simulate some data
-#' set.seed(1)
-#' N <- 100
-#' x1 <- runif(N, -1, 1)
-#' x2 <- runif(N, -1, 1) ## this covariate is not included
-#' Y <- rnorm(N, 1 + 2.5 * x1, sd = 1)
-#' 
-#' ## build the model
-#' rIndicatorModel <- nimbleModel(code, constants = list(N = N),
-#'                                data = list(Y = Y, x1 = x1, x2 = x2), 
-#'                                inits = list(beta0 = 0, beta1 = 0, beta2 = 0, sigma = sd(Y),
-#'                                z1 = 1, z2 = 1, psi = 0.5))
-#' 
-#' indicatorModelConf <- configureMCMC(rIndicatorModel)
-#' 
-#' ## Add reversible jump  
-#' configureRJ(conf = indicatorModelConf,        ## model configuration
-#'             targetNodes = c("beta1", "beta2"), ## coefficients for selection
-#'             indicatorNodes = c("z1", "z2"),    ## indicators paired with coefficients
-#'             control = list(mean = 0, scale = 2))
-#' 
-#' indicatorModelConf$addMonitors("beta1", "beta2", "z1", "z2")
-#' 
-#' rIndicatorMCMC <- buildMCMC(indicatorModelConf)
-#' cIndicatorModel <- compileNimble(rIndicatorModel)
-#' cIndicatorMCMC <- compileNimble(rIndicatorMCMC, project = rIndicatorModel)
-#' 
-#' set.seed(1)
-#' samples <- runMCMC(cIndicatorMCMC, 10000, nburnin = 6000)
-#' 
-#' ## posterior probability to be included in the mode
-#' mean(samples[ , "z1"])
-#' mean(samples[ , "z2"])
-#' 
-#' ## posterior means when in the model
-#' mean(samples[ , "beta1"][samples[ , "z1"] != 0])
-#' mean(samples[ , "beta2"][samples[ , "z2"] != 0])
-#'
-#' 
-#' ## Linear regression with intercept and two covariates, without indicator variables
-#'
-#' code <- nimbleCode({
-#'   beta0 ~ dnorm(0, sd = 100)
-#'   beta1 ~ dnorm(0, sd = 100)
-#'   beta2 ~ dnorm(0, sd = 100)
-#'   sigma ~ dunif(0, 100)
-#'   for(i in 1:N) {
-#'     Ypred[i] <- beta0 + beta1 * x1[i] + beta2 * x2[i]
-#'     Y[i] ~ dnorm(Ypred[i], sd = sigma)
-#'   }
-#' })
-#' 
-#' rNoIndicatorModel <- nimbleModel(code, constants = list(N = N),
-#'                                  data = list(Y = Y, x1 = x1, x2 = x2), 
-#'                                  inits=  list(beta0 = 0, beta1 = 0, beta2 = 0, sigma = sd(Y)))
-#' 
-#' noIndicatorModelConf <- configureMCMC(rNoIndicatorModel)
-#' 
-#' ## Add reversible jump  
-#' configureRJ(conf = noIndicatorModelConf,      ## model configuration
-#'             targetNodes = c("beta1", "beta2"), ## coefficients for selection   
-#'             priorProb = 0.5,                   ## prior probability of inclusion
-#'             control = list(mean = 0, scale = 2))
-#' 
-#' ## add monitors
-#' noIndicatorModelConf$addMonitors("beta1", "beta2")
-#' rNoIndicatorMCMC <- buildMCMC(noIndicatorModelConf) 
-#' 
-#' cNoIndicatorModel <- compileNimble(rNoIndicatorModel)
-#' cNoIndicatorMCMC <- compileNimble(rNoIndicatorMCMC, project = rNoIndicatorModel)
-#' 
-#' set.seed(1)
-#' samples <- runMCMC(cNoIndicatorMCMC, 10000, nburnin = 6000)
-#' 
-#' ## posterior probability to be included in the mode
-#' mean(samples[ , "beta1"] != 0)
-#' mean(samples[ , "beta2"] != 0)
-#' 
-#' ## posterior means when in the model
-#' mean(samples[ , "beta1"][samples[ , "beta1"] != 0])
-#' mean(samples[ , "beta2"][samples[ , "beta2"] != 0])
-#' }
-#'
-#' @author Sally Paganin, Perry de Valpine, Daniel Turek
-#'  
-#' @export
-#' 
-#' @references
-#' 
-#' Peter J. Green. (1995). Reversible jump Markov chain Monte Carlo computation and Bayesian model determination. \emph{Biometrika}, 82(4), 711-732.
-#' 
-configureRJ <- function(conf, targetNodes, indicatorNodes = NULL, priorProb = NULL, control = list(mean = NULL, scale = NULL, fixedValue = NULL)) {
+## configure for multiple targets
+configureRJ_multi <- function(conf, targetNodes, indicatorNodes = NULL, priorProb = NULL, control = list(mean = NULL, scale = NULL, fixedValue = NULL)) {
     model <- conf$model
     nNodes <- length(targetNodes)
     fixedValue <- if(!is.null(control$fixedValue)) control$fixedValue else 0
@@ -350,16 +131,66 @@ configureRJ <- function(conf, targetNodes, indicatorNodes = NULL, priorProb = NU
                 } else if(length(currentConf) > 1) {
                     warning(paste0("configureRJ: There is more than one sampler for '", nodeAsScalar[j], "'. Only the first will be used by RJ_toggled sampler, and others will be removed."))
                 }
-                ## Add reversible jump sampler for the indicatorNodes variable
-                conf$removeSamplers(indicatorsAsScalar[j])
-                conf$addSampler(type = sampler_RJ_indicator,
-                                    target = indicatorsAsScalar[j],
-                                    control = nodeControl)
-                ## Add sampler for the coefficient variable (when is in the model)
-                conf$removeSamplers(nodeAsScalar[j])
-                conf$addSampler(type = sampler_RJ_toggled,
-                                    target = nodeAsScalar[j],
-                                    control = list(samplerType = currentConf[[1]]))
+                ## check whether indicator nodes have been used before
+                ## and if so then link indicators to multiple nodes
+                currentConfInd <- conf$getSamplers(indicatorsAsScalar[j])
+                if(length(currentConfInd) > 1) stop("Error with currentConfInd")
+                if(any(sapply(currentConfInd, '[[', 'name') == 'RJ_indicator' | 
+                        sapply(currentConfInd, '[[', 'name') == 'RJ_indicator_multi')) {
+                    currentRJInd <- currentConfInd[sapply(currentConfInd, '[[', 'name') == 'RJ_indicator']
+                    currentRJ <- currentConf[sapply(currentConfInd, '[[', 'name') == 'RJ_indicator']
+                    if(length(currentRJInd) > 0) {
+                        ## extract current coefficients
+                        coefs <- sapply(lapply(currentRJInd, '[[', 'control'), '[[', 'targetNode')
+                        ## append to new node
+                        coefs <- c(coefs, nodeAsScalar[j])
+                        nodeControl1 <- nodeControl
+                        nodeControl1$targetNode <- NULL
+                        nodeControl1$targetNodes <- coefs
+                        ## Add multi reversible jump sampler for the indicatorNodes variable
+                        conf$removeSamplers(indicatorsAsScalar[j])
+                        conf$addSampler(type = sampler_RJ_indicator_multi,
+                                            target = indicatorsAsScalar[j],
+                                            control = nodeControl1)
+                        ## Add sampler for the new coefficient variable (when is in the model)
+                        conf$removeSamplers(nodeAsScalar[j])
+                        conf$addSampler(type = sampler_RJ_toggled,
+                                            target = nodeAsScalar[j],
+                                            control = list(samplerType = currentRJ[[1]]))
+                    }
+                    currentRJInd <- currentConfInd[sapply(currentConfInd, '[[', 'name') == 'RJ_indicator_multi']
+                    currentRJ <- currentConf[sapply(currentConfInd, '[[', 'name') == 'RJ_indicator_multi']
+                    if(length(currentRJInd) > 0) {
+                        ## extract current coefficients
+                        coefs <- sapply(lapply(currentRJInd, '[[', 'control'), '[[', 'targetNodes')
+                        ## append to new node
+                        coefs <- c(coefs, nodeAsScalar[j])
+                        nodeControl1 <- nodeControl
+                        nodeControl1$targetNode <- NULL
+                        nodeControl1$targetNodes <- coefs
+                        ## Add multi reversible jump sampler for the indicatorNodes variable
+                        conf$removeSamplers(indicatorsAsScalar[j])
+                        conf$addSampler(type = sampler_RJ_indicator_multi,
+                                            target = indicatorsAsScalar[j],
+                                            control = nodeControl1)
+                        ## Add sampler for the new coefficient variable (when is in the model)
+                        conf$removeSamplers(nodeAsScalar[j])
+                        conf$addSampler(type = sampler_RJ_toggled,
+                                            target = nodeAsScalar[j],
+                                            control = list(samplerType = currentRJ[[1]]))
+                    }
+                } else {
+                    ## Add reversible jump sampler for the indicatorNodes variable
+                    conf$removeSamplers(indicatorsAsScalar[j])
+                    conf$addSampler(type = sampler_RJ_indicator,
+                                        target = indicatorsAsScalar[j],
+                                        control = nodeControl)
+                    ## Add sampler for the coefficient variable (when is in the model)
+                    conf$removeSamplers(nodeAsScalar[j])
+                    conf$addSampler(type = sampler_RJ_toggled,
+                                        target = nodeAsScalar[j],
+                                        control = list(samplerType = currentConf[[1]]))
+                }
             }
         }
     }
