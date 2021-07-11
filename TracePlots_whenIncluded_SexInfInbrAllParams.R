@@ -2,238 +2,204 @@ library(tidyverse)
 library(patchwork)
 library(MCMCvis)
 
-samples <- readRDS("outputs/Sex3InfectionInbr_AllParameters_runsamples.rds")
+samples <- readRDS("outputs/Sex3Infection_AllParameters_runsamples.rds")
 
-mcmcplot(samples$samples, parms = c("a1", "a2", "b1", "b2", "c1"))
+mcmcplot(run$samples, parms = c("a1", "a2", "b1", "b2", "c1"))
 
 samples <- as.matrix(samples$samples, chains = TRUE)
 samples <- as.data.frame(samples)
 
 names(samples)
-colnames(samples) <- c("CHAIN", "a1", "a2", "b1", "b2", "beta1", "beta2", "beta3", "beta4", "beta5", "beta6", "beta7", "beta8", "beta9", "beta10",
-              "betaINBR1", "betaINBR2", "betaINBR3", "betaINBR4", "betaINBR5", "betaINBR6", "betaINBR7", "betaINBR8", "betaINBR9", "betaINBR10",
-              "betaINBR11", "betaINBR12", "betaINBR13", "betaINBR14", "betaINBR15",  "betaINFADULT1", "betaINFADULT2", "betaINFADULT3", "betaINFADULT4", 
-              "betaINFADULT5", "betaINFCUB1", "betaINFCUB2", "betaINFCUB3", "betaINFCUB4", "betaINFCUB5", "betaInbrInfADULT1", "betaInbrInfADULT2", 
-              "betaInbrInfADULT3", "betaInbrInfADULT4", "betaInbrInfADULT5", "betaInbrInfCUB1", "betaInbrInfCUB2", "betaInbrInfCUB3", "betaInbrInfCUB4",
-              "betaInbrInfCUB5", "c1", "mean.p", "z1", "z2", "z3", "z4", "z5", "z6", "z7", "z8", "z9", "z10", "z11",
+colnames(samples) <- c("CHAIN", "a1", "a2", "b1", "b2", "beta1", "beta2", "beta3", "beta4", "beta5", "beta6", "beta7", "beta8", "beta9", "beta10", "beta11", "beta12", "beta13",
+              "beta14", "beta15", "betaINFADULT1", "betaINFADULT2", "betaINFADULT3", "betaINFADULT4", "betaINFADULT5", "betaINFCUB1", "betaINFCUB2", "betaINFCUB3", 
+              "betaINFCUB4", "betaINFCUB5", "betaSexINFADULT1", "betaSexINFADULT2", "betaSexINFADULT3", "betaSexINFADULT4", "betaSexINFADULT5", "betaSexINFCUB1",
+              "betaSexINFCUB2", "betaSexINFCUB3", "betaSexINFCUB4", "betaSexINFCUB5", "c1", "mean.p", "z1", "z2", "z3", "z4", "z5", "z6", "z7", "z8", "z9", "z10", "z11",
               "z12", "z13", "z14", "z15") 
 
 samples$CHAIN <- as.factor(samples$CHAIN)
 
 beta1 <- samples %>%
+  filter(z1 == 1) %>%
   select(CHAIN, beta1) %>%
   mutate(iteration = 1:length(beta1))
 
 beta2 <- samples %>%
+  filter(z2 == 1) %>%
   select(CHAIN, beta2) %>%
   mutate(iteration = 1:length(beta2))
 
 beta3 <- samples %>%
+  filter(z3 == 1) %>%
   select(CHAIN, beta3) %>%
   mutate(iteration = 1:length(beta3))
 
 beta4 <- samples %>%
+  filter(z4 == 1) %>%
   select(CHAIN, beta4) %>%
   mutate(iteration = 1:length(beta4))
 
 beta5 <- samples %>%
+  filter(z5 == 1) %>%
   select(CHAIN, beta5) %>%
   mutate(iteration = 1:length(beta5))
 
 beta6 <- samples %>%
+  filter(z6 == 1) %>%
   select(CHAIN, beta6) %>%
   mutate(iteration = 1:length(beta6))
 
 beta7 <- samples %>%
+  filter(z7 == 1) %>%
   select(CHAIN, beta7) %>%
   mutate(iteration = 1:length(beta7))
 
 beta8 <- samples %>%
+  filter(z8 == 1) %>%
   select(CHAIN, beta8) %>%
   mutate(iteration = 1:length(beta8))
 
 beta9 <- samples %>%
+  filter(z9 == 1) %>%
   select(CHAIN, beta9) %>%
   mutate(iteration = 1:length(beta9))
 
 beta10 <- samples %>%
+  filter(z10 == 1) %>%
   select(CHAIN, beta10) %>%
   mutate(iteration = 1:length(beta10))
 
-##
-
-betaINBR1 <- samples %>%
-  filter(z1 == 1) %>%
-  select(CHAIN, betaINBR1) %>%
-  mutate(iteration = 1:length(betaINBR1))
-
-betaINBR2 <- samples %>%
-  filter(z2 == 1) %>%
-  select(CHAIN, betaINBR2) %>%
-  mutate(iteration = 1:length(betaINBR2))
-
-betaINBR3 <- samples %>%
-  filter(z3 == 1) %>%
-  select(CHAIN, betaINBR3) %>%
-  mutate(iteration = 1:length(betaINBR3))
-
-betaINBR4 <- samples %>%
-  filter(z4 == 1) %>%
-  select(CHAIN, betaINBR4) %>%
-  mutate(iteration = 1:length(betaINBR4))
-
-betaINBR5 <- samples %>%
-  filter(z5 == 1) %>%
-  select(CHAIN, betaINBR5) %>%
-  mutate(iteration = 1:length(betaINBR5))
-
-betaINBR6 <- samples %>%
-  filter(z6 == 1) %>%
-  select(CHAIN, betaINBR6) %>%
-  mutate(iteration = 1:length(betaINBR6))
-
-betaINBR7 <- samples %>%
-  filter(z7 == 1) %>%
-  select(CHAIN, betaINBR7) %>%
-  mutate(iteration = 1:length(betaINBR7))
-
-betaINBR8 <- samples %>%
-  filter(z8 == 1) %>%
-  select(CHAIN, betaINBR8) %>%
-  mutate(iteration = 1:length(betaINBR8))
-
-betaINBR9 <- samples %>%
-  filter(z9 == 1) %>%
-  select(CHAIN, betaINBR9) %>%
-  mutate(iteration = 1:length(betaINBR9))
-
-betaINBR10 <- samples %>%
-  filter(z10 == 1) %>%
-  select(CHAIN, betaINBR10) %>%
-  mutate(iteration = 1:length(betaINBR10))
-
-betaINBR11 <- samples %>%
+beta11 <- samples %>%
   filter(z11 == 1) %>%
-  select(CHAIN, betaINBR11) %>%
-  mutate(iteration = 1:length(betaINBR11))
+  select(CHAIN, beta11) %>%
+  mutate(iteration = 1:length(beta11))
 
-betaINBR12 <- samples %>%
+beta12 <- samples %>%
   filter(z12 == 1) %>%
-  select(CHAIN, betaINBR12) %>%
-  mutate(iteration = 1:length(betaINBR12))
+  select(CHAIN, beta12) %>%
+  mutate(iteration = 1:length(beta12))
 
-betaINBR13 <- samples %>%
+beta13 <- samples %>%
   filter(z13 == 1) %>%
-  select(CHAIN, betaINBR13) %>%
-  mutate(iteration = 1:length(betaINBR13))
+  select(CHAIN, beta13) %>%
+  mutate(iteration = 1:length(beta13))
 
-betaINBR14 <- samples %>%
+beta14 <- samples %>%
   filter(z14 == 1) %>%
-  select(CHAIN, betaINBR14) %>%
-  mutate(iteration = 1:length(betaINBR14))
+  select(CHAIN, beta14) %>%
+  mutate(iteration = 1:length(beta14))
 
-betaINBR15 <- samples %>%
+beta15 <- samples %>%
   filter(z15 == 1) %>%
-  select(CHAIN, betaINBR15) %>%
-  mutate(iteration = 1:length(betaINBR15))
+  select(CHAIN, beta15) %>%
+  mutate(iteration = 1:length(beta15))
 
 ##
 
 betaINFADULT1 <- samples %>%
+  filter(z2 == 1) %>%
   select(CHAIN, betaINFADULT1) %>%
   mutate(iteration = 1:length(betaINFADULT1))
 
 betaINFADULT2 <- samples %>%
+  filter(z5 == 1) %>%
   select(CHAIN, betaINFADULT2) %>%
   mutate(iteration = 1:length(betaINFADULT2))
 
 betaINFADULT3 <- samples %>%
+  filter(z8 == 1) %>%
   select(CHAIN, betaINFADULT3) %>%
   mutate(iteration = 1:length(betaINFADULT3))
 
 betaINFADULT4 <- samples %>%
+  filter(z11 == 1) %>%
   select(CHAIN, betaINFADULT4) %>%
   mutate(iteration = 1:length(betaINFADULT4))
 
 betaINFADULT5 <- samples %>%
+  filter(z14 == 1) %>%
   select(CHAIN, betaINFADULT5) %>%
   mutate(iteration = 1:length(betaINFADULT5))
 
 ##
 
 betaINFCUB1 <- samples %>%
+  filter(z2 == 1) %>%
   select(CHAIN, betaINFCUB1) %>%
   mutate(iteration = 1:length(betaINFCUB1))
 
 betaINFCUB2 <- samples %>%
+  filter(z5 == 1) %>%
   select(CHAIN, betaINFCUB2) %>%
   mutate(iteration = 1:length(betaINFCUB2))
 
 betaINFCUB3 <- samples %>%
+  filter(z8 == 1) %>%
   select(CHAIN, betaINFCUB3) %>%
   mutate(iteration = 1:length(betaINFCUB3))
 
 betaINFCUB4 <- samples %>%
+  filter(z11 == 1) %>%
   select(CHAIN, betaINFCUB4) %>%
   mutate(iteration = 1:length(betaINFCUB4))
 
 betaINFCUB5 <- samples %>%
+  filter(z14 == 1) %>%
   select(CHAIN, betaINFCUB5) %>%
   mutate(iteration = 1:length(betaINFCUB5))
 
 ##
 
-betaInbrInfCUB1 <- samples %>%
+betaSexINFCUB1 <- samples %>%
   filter(z3 == 1) %>%
-  select(CHAIN, betaInbrInfCUB1) %>%
-  mutate(iteration = 1:length(betaInbrInfCUB1))
+  select(CHAIN, betaSexINFCUB1) %>%
+  mutate(iteration = 1:length(betaSexINFCUB1))
 
-betaInbrInfCUB2 <- samples %>%
+betaSexINFCUB2 <- samples %>%
   filter(z6 == 1) %>%
-  select(CHAIN, betaInbrInfCUB2) %>%
-  mutate(iteration = 1:length(betaInbrInfCUB2))
+  select(CHAIN, betaSexINFCUB2) %>%
+  mutate(iteration = 1:length(betaSexINFCUB2))
 
-betaInbrInfCUB3 <- samples %>%
+betaSexINFCUB3 <- samples %>%
   filter(z9 == 1) %>%
-  select(CHAIN, betaInbrInfCUB3) %>%
-  mutate(iteration = 1:length(betaInbrInfCUB3))
+  select(CHAIN, betaSexINFCUB3) %>%
+  mutate(iteration = 1:length(betaSexINFCUB3))
 
-betaInbrInfCUB4 <- samples %>%
+betaSexINFCUB4 <- samples %>%
   filter(z12 == 1) %>%
-  select(CHAIN, betaInbrInfCUB4) %>%
-  mutate(iteration = 1:length(betaInbrInfCUB4))
+  select(CHAIN, betaSexINFCUB4) %>%
+  mutate(iteration = 1:length(betaSexINFCUB4))
 
-betaInbrInfCUB5 <- samples %>%
+betaSexINFCUB5 <- samples %>%
   filter(z15 == 1) %>%
-  select(CHAIN, betaInbrInfCUB5) %>%
-  mutate(iteration = 1:length(betaInbrInfCUB5))
+  select(CHAIN, betaSexINFCUB5) %>%
+  mutate(iteration = 1:length(betaSexINFCUB5))
 
 ##
 
-betaInbrInfADULT1 <- samples %>%
+betaSexINFADULT1 <- samples %>%
   filter(z3 == 1) %>%
-  select(CHAIN, betaInbrInfADULT1) %>%
-  mutate(iteration = 1:length(betaInbrInfADULT1))
+  select(CHAIN, betaSexINFADULT1) %>%
+  mutate(iteration = 1:length(betaSexINFADULT1))
 
-betaInbrInfADULT2 <- samples %>%
+betaSexINFADULT2 <- samples %>%
   filter(z6 == 1) %>%
-  select(CHAIN, betaInbrInfADULT2) %>%
-  mutate(iteration = 1:length(betaInbrInfADULT2))
+  select(CHAIN, betaSexINFADULT2) %>%
+  mutate(iteration = 1:length(betaSexINFADULT2))
 
-betaInbrInfADULT3 <- samples %>%
+betaSexINFADULT3 <- samples %>%
   filter(z9 == 1) %>%
-  select(CHAIN, betaInbrInfADULT3) %>%
-  mutate(iteration = 1:length(betaInbrInfADULT3))
+  select(CHAIN, betaSexINFADULT3) %>%
+  mutate(iteration = 1:length(betaSexINFADULT3))
 
-betaInbrInfADULT4 <- samples %>%
+betaSexINFADULT4 <- samples %>%
   filter(z12 == 1) %>%
-  select(CHAIN, betaInbrInfADULT4) %>%
-  mutate(iteration = 1:length(betaInbrInfADULT4))
+  select(CHAIN, betaSexINFADULT4) %>%
+  mutate(iteration = 1:length(betaSexINFADULT4))
 
-betaInbrInfADULT5 <- samples %>%
+betaSexINFADULT5 <- samples %>%
   filter(z15 == 1) %>%
-  select(CHAIN, betaInbrInfADULT5) %>%
-  mutate(iteration = 1:length(betaInbrInfADULT5))
+  select(CHAIN, betaSexINFADULT5) %>%
+  mutate(iteration = 1:length(betaSexINFADULT5))
 
 ##
 
@@ -242,7 +208,7 @@ b1 <- ggplot(beta1) +
   geom_line(aes(y = beta1, x = iteration, colour = CHAIN))
 b1d <- ggplot(beta1) +
   geom_density(aes(x = beta1, colour = CHAIN))
-
+  
 beta2 <- as.data.frame(beta2)
 beta2$iteration <- seq(1:nrow(beta2))
 b2 <- ggplot(beta2) +
@@ -307,84 +273,121 @@ b10 <- ggplot(beta10) +
 b10d <- ggplot(beta10) +
   geom_density(aes(x = beta10, colour = CHAIN))
 
+beta11 <- as.data.frame(beta11)
+beta11$iteration <- seq(1:nrow(beta11))
+b11 <- ggplot(beta11) +
+  geom_line(aes(y = beta11, x = iteration, colour = CHAIN))
+b11d <- ggplot(beta11) +
+  geom_density(aes(x = beta11, colour = CHAIN))
+
+beta12 <- as.data.frame(beta12)
+beta12$iteration <- seq(1:nrow(beta12))
+b12 <- ggplot(beta12) +
+  geom_line(aes(y = beta12, x = iteration, colour = CHAIN))
+b12d <- ggplot(beta12) +
+  geom_density(aes(x = beta12, colour = CHAIN))
+
+beta13 <- as.data.frame(beta13)
+beta13$iteration <- seq(1:nrow(beta13))
+b13 <- ggplot(beta13) +
+  geom_line(aes(y = beta13, x = iteration, colour = CHAIN))
+b13d <- ggplot(beta13) +
+  geom_density(aes(x = beta13, colour = CHAIN))
+
+beta14 <- as.data.frame(beta14)
+beta14$iteration <- seq(1:nrow(beta14))
+b14 <- ggplot(beta14) +
+  geom_line(aes(y = beta14, x = iteration, colour = CHAIN))
+b14d <- ggplot(beta14) +
+  geom_density(aes(x = beta14, colour = CHAIN))
+
+beta15 <- as.data.frame(beta15)
+beta15$iteration <- seq(1:nrow(beta15))
+b15 <- ggplot(beta15) +
+  geom_line(aes(y = beta15, x = iteration, colour = CHAIN))
+b15d <- ggplot(beta15) +
+  geom_density(aes(x = beta15, colour = CHAIN))
+
+
 b1/b2/b3|b1d/b2d/b3d
 b4/b5/b6|b4d/b5d/b6d
 b7/b8/b9|b7d/b8d/b9d
-b10|b10d
+b10/b11/b12|b10d/b11d/b12d
+b13/b14/b15|b13d/b14d/b15d
 
 ##
 
-betaInbrInfADULT1 <- as.data.frame(betaInbrInfADULT1)
-betaInbrInfADULT1$iteration <- seq(1:nrow(betaInbrInfADULT1))
-bsiAA1 <- ggplot(betaInbrInfADULT1) +
-  geom_line(aes(x = iteration, y = betaInbrInfADULT1, colour = CHAIN))
-bsiAA1d <- ggplot(betaInbrInfADULT1) + 
-  geom_density(aes(x = betaInbrInfADULT1, colour = CHAIN))
+betaSexINFADULT1 <- as.data.frame(betaSexINFADULT1)
+betaSexINFADULT1$iteration <- seq(1:nrow(betaSexINFADULT1))
+bsiAA1 <- ggplot(betaSexINFADULT1) +
+  geom_line(aes(x = iteration, y = betaSexINFADULT1, colour = CHAIN))
+bsiAA1d <- ggplot(betaSexINFADULT1) + 
+  geom_density(aes(x = betaSexINFADULT1, colour = CHAIN))
 
-betaInbrInfADULT2 <- as.data.frame(betaInbrInfADULT2)
-betaInbrInfADULT2$iteration <- seq(1:nrow(betaInbrInfADULT2))
-bsiAA2 <- ggplot(betaInbrInfADULT2) +
-  geom_line(aes(x = iteration, y = betaInbrInfADULT2, colour = CHAIN))
-bsiAA2d <- ggplot(betaInbrInfADULT2) + 
-  geom_density(aes(x = betaInbrInfADULT2, colour = CHAIN))
+betaSexINFADULT2 <- as.data.frame(betaSexINFADULT2)
+betaSexINFADULT2$iteration <- seq(1:nrow(betaSexINFADULT2))
+bsiAA2 <- ggplot(betaSexINFADULT2) +
+  geom_line(aes(x = iteration, y = betaSexINFADULT2, colour = CHAIN))
+bsiAA2d <- ggplot(betaSexINFADULT2) + 
+  geom_density(aes(x = betaSexINFADULT2, colour = CHAIN))
 
-betaInbrInfADULT3 <- as.data.frame(betaInbrInfADULT3)
-betaInbrInfADULT3$iteration <- seq(1:nrow(betaInbrInfADULT3))
-bsiAB1 <- ggplot(betaInbrInfADULT3) +
-  geom_line(aes(x = iteration, y = betaInbrInfADULT3, colour = CHAIN))
-bsiAB1d <- ggplot(betaInbrInfADULT3) + 
-  geom_density(aes(x = betaInbrInfADULT3, colour = CHAIN))
+betaSexINFADULT3 <- as.data.frame(betaSexINFADULT3)
+betaSexINFADULT3$iteration <- seq(1:nrow(betaSexINFADULT3))
+bsiAB1 <- ggplot(betaSexINFADULT3) +
+  geom_line(aes(x = iteration, y = betaSexINFADULT3, colour = CHAIN))
+bsiAB1d <- ggplot(betaSexINFADULT3) + 
+  geom_density(aes(x = betaSexINFADULT3, colour = CHAIN))
 
-betaInbrInfADULT4 <- as.data.frame(betaInbrInfADULT4)
-betaInbrInfADULT4$iteration <- seq(1:nrow(betaInbrInfADULT4))
-bsiAB2 <- ggplot(betaInbrInfADULT4) +
-  geom_line(aes(x = iteration, y = betaInbrInfADULT4, colour = CHAIN))
-bsiAB2d <- ggplot(betaInbrInfADULT4) + 
-  geom_density(aes(x = betaInbrInfADULT4, colour = CHAIN))
+betaSexINFADULT4 <- as.data.frame(betaSexINFADULT4)
+betaSexINFADULT4$iteration <- seq(1:nrow(betaSexINFADULT4))
+bsiAB2 <- ggplot(betaSexINFADULT4) +
+  geom_line(aes(x = iteration, y = betaSexINFADULT4, colour = CHAIN))
+bsiAB2d <- ggplot(betaSexINFADULT4) + 
+  geom_density(aes(x = betaSexINFADULT4, colour = CHAIN))
 
-betaInbrInfADULT5 <- as.data.frame(betaInbrInfADULT5)
-betaInbrInfADULT5$iteration <- seq(1:nrow(betaInbrInfADULT5))
-bsiAC1 <- ggplot(betaInbrInfADULT5) +
-  geom_line(aes(x = iteration, y = betaInbrInfADULT5, colour = CHAIN))
-bsiAC1d <- ggplot(betaInbrInfADULT5) + 
-  geom_density(aes(x = betaInbrInfADULT5, colour = CHAIN))
+betaSexINFADULT5 <- as.data.frame(betaSexINFADULT5)
+betaSexINFADULT5$iteration <- seq(1:nrow(betaSexINFADULT5))
+bsiAC1 <- ggplot(betaSexINFADULT5) +
+  geom_line(aes(x = iteration, y = betaSexINFADULT5, colour = CHAIN))
+bsiAC1d <- ggplot(betaSexINFADULT5) + 
+  geom_density(aes(x = betaSexINFADULT5, colour = CHAIN))
 
 ##
 
-betaInbrInfCUB1 <- as.data.frame(betaInbrInfCUB1)
-betaInbrInfCUB1$iteration <- seq(1:nrow(betaInbrInfCUB1))
-bsiCA1 <- ggplot(betaInbrInfCUB1) +
-  geom_line(aes(x = iteration, y = betaInbrInfCUB1, colour = CHAIN))
-bsiCA1d <- ggplot(betaInbrInfCUB1) + 
-  geom_density(aes(x = betaInbrInfCUB1, colour = CHAIN))
+betaSexINFCUB1 <- as.data.frame(betaSexINFCUB1)
+betaSexINFCUB1$iteration <- seq(1:nrow(betaSexINFCUB1))
+bsiCA1 <- ggplot(betaSexINFCUB1) +
+  geom_line(aes(x = iteration, y = betaSexINFCUB1, colour = CHAIN))
+bsiCA1d <- ggplot(betaSexINFCUB1) + 
+  geom_density(aes(x = betaSexINFCUB1, colour = CHAIN))
 
-betaInbrInfCUB2 <- as.data.frame(betaInbrInfCUB2)
-betaInbrInfCUB2$iteration <- seq(1:nrow(betaInbrInfCUB2))
-bsiCA2 <- ggplot(betaInbrInfCUB2) +
-  geom_line(aes(x = iteration, y = betaInbrInfCUB2, colour = CHAIN))
-bsiCA2d <- ggplot(betaInbrInfCUB2) + 
-  geom_density(aes(x = betaInbrInfCUB2, colour = CHAIN))
+betaSexINFCUB2 <- as.data.frame(betaSexINFCUB2)
+betaSexINFCUB2$iteration <- seq(1:nrow(betaSexINFCUB2))
+bsiCA2 <- ggplot(betaSexINFCUB2) +
+  geom_line(aes(x = iteration, y = betaSexINFCUB2, colour = CHAIN))
+bsiCA2d <- ggplot(betaSexINFCUB2) + 
+  geom_density(aes(x = betaSexINFCUB2, colour = CHAIN))
 
-betaInbrInfCUB3 <- as.data.frame(betaInbrInfCUB3)
-betaInbrInfCUB3$iteration <- seq(1:nrow(betaInbrInfCUB3))
-bsiCB1 <- ggplot(betaInbrInfCUB3) +
-  geom_line(aes(x = iteration, y = betaInbrInfCUB3, colour = CHAIN))
-bsiCB1d <- ggplot(betaInbrInfCUB3) + 
-  geom_density(aes(x = betaInbrInfCUB3, colour = CHAIN))
+betaSexINFCUB3 <- as.data.frame(betaSexINFCUB3)
+betaSexINFCUB3$iteration <- seq(1:nrow(betaSexINFCUB3))
+bsiCB1 <- ggplot(betaSexINFCUB3) +
+  geom_line(aes(x = iteration, y = betaSexINFCUB3, colour = CHAIN))
+bsiCB1d <- ggplot(betaSexINFCUB3) + 
+  geom_density(aes(x = betaSexINFCUB3, colour = CHAIN))
 
-betaInbrInfCUB4 <- as.data.frame(betaInbrInfCUB4)
-betaInbrInfCUB4$iteration <- seq(1:nrow(betaInbrInfCUB4))
-bsiCB2 <- ggplot(betaInbrInfCUB4) +
-  geom_line(aes(x = iteration, y = betaInbrInfCUB4, colour = CHAIN))
-bsiCB2d <- ggplot(betaInbrInfCUB4) + 
-  geom_density(aes(x = betaInbrInfCUB4, colour = CHAIN))
+betaSexINFCUB4 <- as.data.frame(betaSexINFCUB4)
+betaSexINFCUB4$iteration <- seq(1:nrow(betaSexINFCUB4))
+bsiCB2 <- ggplot(betaSexINFCUB4) +
+  geom_line(aes(x = iteration, y = betaSexINFCUB4, colour = CHAIN))
+bsiCB2d <- ggplot(betaSexINFCUB4) + 
+  geom_density(aes(x = betaSexINFCUB4, colour = CHAIN))
 
-betaInbrInfCUB5 <- as.data.frame(betaInbrInfCUB5)
-betaInbrInfCUB5$iteration <- seq(1:nrow(betaInbrInfCUB5))
-bsiCC1 <- ggplot(betaInbrInfCUB5) +
-  geom_line(aes(x = iteration, y = betaInbrInfCUB5, colour = CHAIN))
-bsiCC1d <- ggplot(betaInbrInfCUB5) + 
-  geom_density(aes(x = betaInbrInfCUB5, colour = CHAIN))
+betaSexINFCUB5 <- as.data.frame(betaSexINFCUB5)
+betaSexINFCUB5$iteration <- seq(1:nrow(betaSexINFCUB5))
+bsiCC1 <- ggplot(betaSexINFCUB5) +
+  geom_line(aes(x = iteration, y = betaSexINFCUB5, colour = CHAIN))
+bsiCC1d <- ggplot(betaSexINFCUB5) + 
+  geom_density(aes(x = betaSexINFCUB5, colour = CHAIN))
 
 ##
 
@@ -472,115 +475,3 @@ biAB1/biAB2/biAC1|biAB1d/biAB2d/biAC1d
 biCA1/biCA2/biCB1|biCA1d/biCA2d/biCB1d
 biCB2/biCC1|biCB2d/biCC1d
 
-##
-
-betaINBR1 <- as.data.frame(betaINBR1)
-bI1 <- ggplot(betaINBR1) +
-  geom_line(aes(y = betaINBR1, x = iteration, colour = CHAIN))
-bI1d <- ggplot(betaINBR1) +
-  geom_density(aes(x = betaINBR1, colour = CHAIN))
-
-betaINBR2 <- as.data.frame(betaINBR2)
-betaINBR2$iteration <- seq(1:nrow(betaINBR2))
-bI2 <- ggplot(betaINBR2) +
-  geom_line(aes(y = betaINBR2, x = iteration, colour = CHAIN))
-bI2d <- ggplot(betaINBR2) +
-  geom_density(aes(x = betaINBR2, colour = CHAIN))
-
-betaINBR3 <- as.data.frame(betaINBR3)
-betaINBR3$iteration <- seq(1:nrow(betaINBR3))
-bI3 <- ggplot(betaINBR3) +
-  geom_line(aes(y = betaINBR3, x = iteration, colour = CHAIN))
-bI3d <- ggplot(betaINBR3) +
-  geom_density(aes(x = betaINBR3, colour = CHAIN))
-
-betaINBR4 <- as.data.frame(betaINBR4)
-betaINBR4$iteration <- seq(1:nrow(betaINBR4))
-bI4 <- ggplot(betaINBR4) +
-  geom_line(aes(y = betaINBR4, x = iteration, colour = CHAIN))
-bI4d <- ggplot(betaINBR4) +
-  geom_density(aes(x = betaINBR4, colour = CHAIN))
-
-
-betaINBR5 <- as.data.frame(betaINBR5)
-betaINBR5$iteration <- seq(1:nrow(betaINBR5))
-bI5 <- ggplot(betaINBR5) +
-  geom_line(aes(y = betaINBR5, x = iteration, colour = CHAIN))
-bI5d <- ggplot(betaINBR5) +
-  geom_density(aes(x = betaINBR5, colour = CHAIN))
-
-betaINBR6 <- as.data.frame(betaINBR6)
-betaINBR6$iteration <- seq(1:nrow(betaINBR6))
-bI6 <- ggplot(betaINBR6) +
-  geom_line(aes(y = betaINBR6, x = iteration, colour = CHAIN))
-bI6d <- ggplot(betaINBR6) +
-  geom_density(aes(x = betaINBR6, colour = CHAIN))
-
-betaINBR7 <- as.data.frame(betaINBR7)
-betaINBR7$iteration <- seq(1:nrow(betaINBR7))
-bI7 <- ggplot(betaINBR7) +
-  geom_line(aes(y = betaINBR7, x = iteration, colour = CHAIN))
-bI7d <- ggplot(betaINBR7) +
-  geom_density(aes(x = betaINBR7, colour = CHAIN))
-
-betaINBR8 <- as.data.frame(betaINBR8)
-betaINBR8$iteration <- seq(1:nrow(betaINBR8))
-bI8 <- ggplot(betaINBR8) +
-  geom_line(aes(y = betaINBR8, x = iteration, colour = CHAIN))
-bI8d <- ggplot(betaINBR8) +
-  geom_density(aes(x = betaINBR8, colour = CHAIN))
-
-betaINBR9 <- as.data.frame(betaINBR9)
-betaINBR9$iteration <- seq(1:nrow(betaINBR9))
-bI9 <- ggplot(betaINBR9) +
-  geom_line(aes(y = betaINBR9, x = iteration, colour = CHAIN))
-bI9d <- ggplot(betaINBR9) +
-  geom_density(aes(x = betaINBR9, colour = CHAIN))
-
-betaINBR10 <- as.data.frame(betaINBR10)
-betaINBR10$iteration <- seq(1:nrow(betaINBR10))
-bI10 <- ggplot(betaINBR10) +
-  geom_line(aes(y = betaINBR10, x = iteration, colour = CHAIN))
-bI10d <- ggplot(betaINBR10) +
-  geom_density(aes(x = betaINBR10, colour = CHAIN))
-
-betaINBR11 <- as.data.frame(betaINBR11)
-bI11 <- ggplot(betaINBR11) +
-  geom_line(aes(y = betaINBR11, x = iteration, colour = CHAIN))
-bI11d <- ggplot(betaINBR11) +
-  geom_density(aes(x = betaINBR11, colour = CHAIN))
-
-betaINBR12 <- as.data.frame(betaINBR12)
-betaINBR12$iteration <- seq(1:nrow(betaINBR12))
-bI12 <- ggplot(betaINBR12) +
-  geom_line(aes(y = betaINBR12, x = iteration, colour = CHAIN))
-bI12d <- ggplot(betaINBR12) +
-  geom_density(aes(x = betaINBR12, colour = CHAIN))
-
-betaINBR13 <- as.data.frame(betaINBR13)
-betaINBR13$iteration <- seq(1:nrow(betaINBR13))
-bI13 <- ggplot(betaINBR13) +
-  geom_line(aes(y = betaINBR13, x = iteration, colour = CHAIN))
-bI13d <- ggplot(betaINBR13) +
-  geom_density(aes(x = betaINBR13, colour = CHAIN))
-
-betaINBR14 <- as.data.frame(betaINBR14)
-betaINBR14$iteration <- seq(1:nrow(betaINBR14))
-bI14 <- ggplot(betaINBR14) +
-  geom_line(aes(y = betaINBR14, x = iteration, colour = CHAIN))
-bI14d <- ggplot(betaINBR14) +
-  geom_density(aes(x = betaINBR14, colour = CHAIN))
-
-betaINBR15 <- as.data.frame(betaINBR15)
-betaINBR15$iteration <- seq(1:nrow(betaINBR15))
-bI15 <- ggplot(betaINBR15) +
-  geom_line(aes(y = betaINBR15, x = iteration, colour = CHAIN))
-bI15d <- ggplot(betaINBR15) +
-  geom_density(aes(x = betaINBR15, colour = CHAIN))
-
-
-bI1/bI2/bI3|bI1d/bI2d/bI3d
-bI4/bI5/bI6|bI4d/bI5d/bI6d
-bI7/bI8/bI9|bI7d/bI8d/bI9d
-bI10/bI11/bI12|bI10d/bI11d/bI12d
-bI13/bI14/bI15|bI13d/bI14d/bI15d

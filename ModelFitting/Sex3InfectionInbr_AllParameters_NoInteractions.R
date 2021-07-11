@@ -50,53 +50,51 @@ code <- nimbleCode({
     
     log(a1mult[i]) <- betaINBR[1] * inbr[i] * z[1] +
       beta[1] * sex[i]  +
-      beta[2] + (betaINFCUB[1] * infection[i, 3] + betaINFADULT[1] * infection[i, 2]) +
-      betaINBR[2] * inbr[i] * sex[i] * z[2] +
-      betaINBR[3] * inbr[i] * (betaInbrInfCUB[1] * infection[i, 3] + betaInbrInfADULT[1] * infection[i, 2]) * z[3]
+      beta[2] + (betaINFCUB[1] * infection[i, 3] + betaINFADULT[1] * infection[i, 2])
+      #betaINBR[2] * inbr[i] * sex[i] * z[2] +
+      #betaINBR[3] * inbr[i] * (betaInbrInfCUB[1] * infection[i, 3] + betaInbrInfADULT[1] * infection[i, 2]) * z[3]
     
-    log(a2mult[i]) <- betaINBR[4] * inbr[i] * z[4] +
+    log(a2mult[i]) <- betaINBR[2] * inbr[i] * z[2] +
       beta[3] * sex[i]  +
-      beta[4] + (betaINFCUB[2] * infection[i, 3] + betaINFADULT[2] * infection[i, 2]) +
-      betaINBR[5] * inbr[i] * sex[i] * z[5] +
-      betaINBR[6] * inbr[i] * (betaInbrInfCUB[2] * infection[i, 3] + betaInbrInfADULT[2] * infection[i, 2]) * z[6]
+      beta[4] + (betaINFCUB[2] * infection[i, 3] + betaINFADULT[2] * infection[i, 2])
+      #betaINBR[5] * inbr[i] * sex[i] * z[5] +
+      #betaINBR[6] * inbr[i] * (betaInbrInfCUB[2] * infection[i, 3] + betaInbrInfADULT[2] * infection[i, 2]) * z[6]
     
-    log(b1mult[i]) <- betaINBR[7] * inbr[i] * z[7] +
-      beta[5] * sex[i]  +
-      beta[6] + (betaINFCUB[3] * infection[i, 3] + betaINFADULT[3] * infection[i, 2]) +
-      betaINBR[8] * inbr[i] * sex[i] * z[8] +
-      betaINBR[9] * inbr[i] * (betaInbrInfCUB[3] * infection[i, 3] + betaInbrInfADULT[3] * infection[i, 2]) * z[9]
+    log(b1mult[i]) <- betaINBR[3] * inbr[i] * z[3] +
+      #beta[5] * sex[i]  +
+      beta[5] + (betaINFCUB[3] * infection[i, 3] + betaINFADULT[3] * infection[i, 2])
+      #betaINBR[8] * inbr[i] * sex[i] * z[8] +
+      #betaINBR[9] * inbr[i] * (betaInbrInfCUB[3] * infection[i, 3] + betaInbrInfADULT[3] * infection[i, 2]) * z[9]
     
-    log(b2mult[i]) <- betaINBR[10] * inbr[i] * z[10] +
-      beta[7] * sex[i]  +
-      beta[8] + (betaINFCUB[4] * infection[i, 3] + betaINFADULT[4] * infection[i, 2]) +
-      betaINBR[11] * inbr[i] * sex[i] * z[11] +
-      betaINBR[12] * inbr[i] * (betaInbrInfCUB[4] * infection[i, 3] + betaInbrInfADULT[4] * infection[i, 2]) * z[12]
+    log(b2mult[i]) <- betaINBR[4] * inbr[i] * z[4]
+      #beta[7] * sex[i]  +
+      #beta[8] + (betaINFCUB[4] * infection[i, 3] + betaINFADULT[4] * infection[i, 2]) +
+      #betaINBR[11] * inbr[i] * sex[i] * z[11] +
+      #betaINBR[12] * inbr[i] * (betaInbrInfCUB[4] * infection[i, 3] + betaInbrInfADULT[4] * infection[i, 2]) * z[12]
     
-    log(c1mult[i]) <- betaINBR[13] * inbr[i] * z[13] +
-      beta[9] * sex[i]  +
-      beta[10] + (betaINFCUB[5] * infection[i, 3] + betaINFADULT[5] * infection[i, 2]) +
-      betaINBR[14] * inbr[i] * sex[i] * z[14] +
-      betaINBR[15] * inbr[i] * (betaInbrInfCUB[5] * infection[i, 3] + betaInbrInfADULT[5] * infection[i, 2]) * z[15]
+    log(c1mult[i]) <- betaINBR[5] * inbr[i] * z[5] +
+      beta[6] * sex[i]  +
+      beta[7] + (betaINFCUB[4] * infection[i, 3] + betaINFADULT[4] * infection[i, 2])
+      #betaINBR[14] * inbr[i] * sex[i] * z[14] +
+      #betaINBR[15] * inbr[i] * (betaInbrInfCUB[5] * infection[i, 3] + betaInbrInfADULT[5] * infection[i, 2]) * z[15]
     
     ## sampling component
     pd[i] <- exp(y[i] * log(mean.p) + (min(floor(tD[i]), tM[i]) - y[i]) * log(1 - mean.p))
     dind[i] ~ dbern(pd[i])
   }
   
-  for (j in 1:15){
+  for (j in 1:5){
     betaINBR[j] ~ dnorm(0, sd = 1)
     z[j] ~ dbern(0.5)
   }
   
-  for (k in 1:10){
+  for (k in 1:7){
     beta[k] ~ dnorm(0, sd = 1)
   }
   
-  for (m in 1:5) {
+  for (m in 1:4) {
     betaINFCUB[m] ~ dnorm(0, sd = 1)
     betaINFADULT[m] ~ dnorm(0, sd = 1)
-    betaInbrInfCUB[m] ~ dnorm(0, sd = 1)
-    betaInbrInfADULT[m] ~ dnorm(0, sd = 1)
   }
   
   a1 ~ dexp(1)
@@ -105,17 +103,6 @@ code <- nimbleCode({
   b2 ~ dexp(1)
   c1 ~ dexp(1)
   mean.p ~ dunif(0, 1)
-  constraint_dataSexInb1 ~ dconstraint(z[2] <= z[1])
-  constraint_dataInfInb1 ~ dconstraint(z[3] <= z[1])
-  constraint_dataSexInb2 ~ dconstraint(z[5] <= z[4])
-  constraint_dataInfInb2 ~ dconstraint(z[6] <= z[4])
-  constraint_dataSexInb3 ~ dconstraint(z[8] <= z[7])
-  constraint_dataInfInb3 ~ dconstraint(z[9] <= z[7])
-  constraint_dataSexInb4 ~ dconstraint(z[11] <= z[10])
-  constraint_dataInfInb4 ~ dconstraint(z[12] <= z[10])
-  constraint_dataSexInb5 ~ dconstraint(z[14] <= z[13])
-  constraint_dataInfInb5 ~ dconstraint(z[15] <= z[13])
-
   })
 
 
@@ -123,16 +110,7 @@ code <- nimbleCode({
 consts <- list(nind = nind, tM = tM, sex = sex, infection = infection, inbr = inbr)
 
 data <- list(y = y, cint = cint, 
-             censored = censored, tD = tD, dind = dind, constraint_dataSexInb1 = 1,
-             constraint_dataInfInb1 = 1,
-             constraint_dataSexInb2 = 1,
-             constraint_dataInfInb2 = 1,
-             constraint_dataSexInb3 = 1,
-             constraint_dataInfInb3 = 1,
-             constraint_dataSexInb4 = 1,
-             constraint_dataInfInb4 = 1,
-             constraint_dataSexInb5 = 1,
-             constraint_dataInfInb5 = 1)
+             censored = censored, tD = tD, dind = dind)
 
 ## find overdispersed initial values
 tinitFn <- function(cint, censored) {
@@ -178,13 +156,11 @@ initFn <- function(cint, censored) {
     b2 = pars[4],
     c1 = pars[5],
     mean.p = runif(1, 0, 1),
-    beta = rnorm(10, 0, 1),
-    betaINFCUB = rnorm(5, 0, 1),
-    betaINFADULT = rnorm(5, 0, 1),
-    betaINBR = rnorm(15, 0, 1),
-    betaInbrInfCUB = rnorm(5, 0, 1),
-    betaInbrInfADULT = rnorm(5, 0, 1),
-    z = rep(0, times = 15)
+    beta = rnorm(7, 0, 1),
+    betaINFCUB = rnorm(4, 0, 1),
+    betaINFADULT = rnorm(4, 0, 1),
+    betaINBR = rnorm(5, 0, 1),
+    z = rep(0, times = 5)
   )
 }
 
@@ -197,23 +173,20 @@ model <- nimbleModel(code, constants = consts,
 ## configure model
 config <- configureMCMC(model)
 #help(samplers)
-config$removeSamplers(c("a1", "a2", "b1", "b2", "c1", "betaINFCUB", "betaSexINFCUB", "betaINFADULT[2]", "betaINFADULT[4]"))
-config$addSampler(target = c("a1"), type = 'slice', control = list(sliceWidth = 2, adaptInterval = 50))
-config$addSampler(target = c("a2"), type = 'slice', control = list(sliceWidth = 2, adaptInterval = 50))
-config$addSampler(target = c("b1"), type = 'slice', control = list(sliceWidth = 2, adaptInterval = 50))
-config$addSampler(target = c("b2"), type = 'slice', control = list(sliceWidth = 2, adaptInterval = 20))
-config$addSampler(target = c("c1"), type = 'slice', control = list(sliceWidth = 2, adaptInterval = 50))
-config$addSampler(target = c("a1", "betaINFCUB[1]"), type = 'AF_slice', control = list(sliceAdaptFactorInterval = 200))
-config$addSampler(target = c("a1", "betaInbrInfCUB[1]"), type = 'AF_slice', control = list(sliceAdaptFactorInterval = 200))
+config$removeSamplers(c("a1", "a2", "b1", "b2", "c1", "betaINFCUB", "betaINFADULT"))
+config$addSampler(target = c("a1"), type = 'slice', control = list(sliceWidth = 1.5, adaptInterval = 50))
+config$addSampler(target = c("a2"), type = 'slice', control = list(sliceWidth = 1.5, adaptInterval = 50))
+config$addSampler(target = c("b1"), type = 'slice', control = list(sliceWidth = 1.5, adaptInterval = 50))
+config$addSampler(target = c("b2"), type = 'slice', control = list(sliceWidth = 1.5, adaptInterval = 20))
+config$addSampler(target = c("c1"), type = 'slice', control = list(sliceWidth = 1.5, adaptInterval = 50))
+config$addSampler(target = c("betaINFCUB[1]", "betaINFADULT[1]"), type = 'AF_slice', control = list(sliceAdaptFactorInterval = 100))
+#config$addSampler(target = c("betaInbrInfCUB[1]", "betaInbrInfADULT[1]"), type = 'AF_slice', control = list(sliceAdaptFactorInterval = 100))
 config$addSampler(target = c("betaINFCUB[2]", "betaINFADULT[2]"), type = 'AF_slice', control = list(sliceAdaptFactorInterval = 100))
-config$addSampler(target = c("betaInbrInfCUB[2]", "betaInbrInfADULT[2]"), type = 'AF_slice', control = list(sliceAdaptFactorInterval = 100))
-config$addSampler(target = c("b1", "betaINFCUB[3]"), type = 'AF_slice', control = list(sliceAdaptFactorInterval = 200))
-config$addSampler(target = c("b1", "betaInbrInfCUB[3]"), type = 'AF_slice', control = list(sliceAdaptFactorInterval = 200))
+#config$addSampler(target = c("betaInbrInfCUB[2]", "betaInbrInfADULT[2]"), type = 'AF_slice', control = list(sliceAdaptFactorInterval = 100))
+config$addSampler(target = c("betaINFCUB[3]", "betaINFADULT[3]"), type = 'AF_slice', control = list(sliceAdaptFactorInterval = 100))
+#config$addSampler(target = c("betaInbrInfCUB[3]", "betaInbrInfADULT[3]"), type = 'AF_slice', control = list(sliceAdaptFactorInterval = 100))
 config$addSampler(target = c("betaINFCUB[4]", "betaINFADULT[4]"), type = 'AF_slice', control = list(sliceAdaptFactorInterval = 100))
-config$addSampler(target = c("betaInbrInfCUB[4]", "betaInbrInfADULT[4]"), type = 'AF_slice', control = list(sliceAdaptFactorInterval = 100))
-config$addSampler(target = c("c1", "betaINFCUB[5]"), type = 'AF_slice', control = list(sliceAdaptFactorInterval = 200))
-config$addSampler(target = c("c1", "betaInbrInfCUB[5]"), type = 'AF_slice', control = list(sliceAdaptFactorInterval = 200))
-
+#config$addSampler(target = c("betaInbrInfCUB[4]", "betaInbrInfADULT[4]"), type = 'AF_slice', control = list(sliceAdaptFactorInterval = 100))
 
 ## Add reversible jump
 configureRJ(conf = config,   ## model configuration
@@ -239,7 +212,7 @@ system.time(run <- runMCMC(cIndicatorMCMC,
                            thin = 1))
 
 ## save mcmc ouput
-saveRDS(run, "outputs/Sex3InfectionInbr_AllParameters_runsamples.rds")
+saveRDS(run, "outputs/m1_InbrAll_noInteractions_runsamples.rds")
 #run <- readRDS("outputs/Sex3InfectionInbr_AllParameters_InbrB2runsamples.rds")
 
 samples <- as.matrix(run$samples)
@@ -270,21 +243,21 @@ res <- res[order(N, decreasing = T)]
 res <- res[, prob := N/dim(samples)[1]]
 res
 res
-saveRDS(res, "outputs/Sex3InfectionInbr_AllParameters_PosteriorModelProbs.rds")
+saveRDS(res, "outputs/m1_InbrAll_noInteractions_PosteriorModelProbs.rds")
 #res <- readRDS("outputs/Sex3Infection_AllParameters_PosteriorModelProbs.rds")
 #samples <- as.matrix(samples)
 samples <- as.data.frame(samples)
 
 z_indicators <- samples %>%
-  select(c(52:66)) %>%
+  select(c(27:31)) %>%
   colSums()
 
 z_indicators <- data.frame(z_indicators/sum(res$N))
-z_indicators$parameter <- c("Inbr_a1", "Inbr:Sex_a1", "Inbr:Inf_a1",
-                            "Inbr_a2", "Inbr:Sex_a2", "Inbr:Inf_a2",
-                            "Inbr_b1", "Inbr:Sex_b1", "Inbr:Inf_b1",
-                            "Inbr_b2", "Inbr:Sex_b2", "Inbr:Inf_b2",
-                            "Inbr_c1", "Inbr:Sex_c1", "Inbr:Inf_c1")
+z_indicators$parameter <- c("Inbr_a1",
+                            "Inbr_a2",
+                            "Inbr_b1",
+                            "Inbr_b2",
+                            "Inbr_c1")
 colnames(z_indicators) <- c("Inclusion_Prob", "parameter")
 
 z_indicators

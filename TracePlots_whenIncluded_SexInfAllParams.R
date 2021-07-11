@@ -4,7 +4,7 @@ library(MCMCvis)
 
 samples <- readRDS("outputs/Sex3Infection_AllParameters_runsamples.rds")
 
-mcmcplot(samples$samples, parms = c("a1", "a2", "b1", "b2", "c1"))
+mcmcplot(run$samples, parms = c("a1", "a2", "b1", "b2", "c1"))
 
 samples <- as.matrix(samples$samples, chains = TRUE)
 samples <- as.data.frame(samples)
