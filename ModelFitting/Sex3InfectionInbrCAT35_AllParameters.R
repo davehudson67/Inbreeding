@@ -36,6 +36,12 @@ source("../SimulationStudy/FirstPaperFiles/ModelComparison_FUNCTIONS.R")
 ## set seed
 set.seed(seeds[15])
 
+## set inbreeding category 
+median(inbr)
+inbrCAT <- as.factor(if_else(inbr >= 0.35, 1, 0)) # (inbred = 1, outbred = 0)
+summary(inbrCAT)
+
+
 ## set up plot output file
 #pdf("outputs/Sex3Infection_AllParameters.pdf")
 
@@ -53,7 +59,7 @@ code <- nimbleCode({
       betaINBR[1] * inbr[i] * zINBR[1] +
       betaSEXINBR[1] * sex[i] * inbr[i] * zSEXINBR[1] +
       (betaINFINBRCUB[1] * infection[i, 3] + betaINFINBRADULT[1] * infection[i, 2]) * inbr[i] * zINFINBR[1]
-      
+    
     log(a2mult[i]) <- log(a2) + betaSEX[2] * sex[i] + 
       (betaINFCUB[2] * infection[i, 3] + betaINFADULT[2] * infection[i, 2]) + 
       betaINBR[2] * inbr[i] * zINBR[2] +
@@ -170,7 +176,7 @@ initFn <- function(cint, censored, model) {
 }
 
 ## set up data
-consts <- list(nind = nind, tM = tM, sex = sex, infection = infection, inbr = inbr)
+consts <- list(nind = nind, tM = tM, sex = sex, infection = infection, inbr = inbrCAT)
 
 data <- list(
   y = y, cint = cint, censored = censored, tD = tD, dind = dind,
@@ -195,7 +201,7 @@ config <- configureMCMC(model)
 config$removeSamplers(c("a1", "a2", "b1", "b2", "c1"))
 config$addSampler(target = c("a1"), type = 'slice', control = list(sliceWidth = 0.5, adaptInterval = 50))
 config$addSampler(target = c("a2"), type = 'slice', control = list(sliceWidth = 1.5, adaptInterval = 20))
-config$addSampler(target = c("b1"), type = 'slice', control = list(sliceWidth = 0.5, adaptInterval = 50))
+config$addSampler(target = c("b1"), type = 'slice', control = list(sliceWidth = 1.5, adaptInterval = 20))
 config$addSampler(target = c("b2"), type = 'slice', control = list(sliceWidth = 1.5, adaptInterval = 20))
 config$addSampler(target = c("c1"), type = 'slice', control = list(sliceWidth = 0.5, adaptInterval = 50))
 
@@ -226,7 +232,7 @@ system.time(run <- runMCMC(cIndicatorMCMC,
                            thin = 1))
 
 ## save mcmc ouput
-saveRDS(run, "outputs/Sex3InfectionInbr_AllParameters_runsamples.rds")
+saveRDS(run, "outputs/Sex3InfectionInbrCAT35_AllParameters_runsamples.rds")
 
 samples <- as.matrix(run$samples)
 #saveRDS(samples, "outputs/Sex3Infection_AllParameters_samples.rds")
@@ -256,7 +262,7 @@ res <- res[order(N, decreasing = T)]
 res <- res[, prob := N/dim(samples)[1]]
 res
 res
-saveRDS(res, "outputs/Sex3InfectionInbr_AllParameters_PosteriorModelProbs.rds")
+saveRDS(res, "outputs/Sex3InfectionInbrCAT35_AllParameters_PosteriorModelProbs.rds")
 #res <- readRDS("outputs/Sex3Infection_AllParameters_PosteriorModelProbs.rds")
 
 samples <- as.data.frame(samples)

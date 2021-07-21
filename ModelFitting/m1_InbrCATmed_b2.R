@@ -36,6 +36,9 @@ source("../SimulationStudy/FirstPaperFiles/ModelComparison_FUNCTIONS.R")
 ## set seed
 set.seed(seeds[15])
 
+inbrCAT <- if_else(inbrCAT >= median(inbrCAT), 1, 0) # (inbred = 1, outbred = 0)
+
+
 ## set up plot output file
 #pdf("outputs/Sex3Infection_AllParameters.pdf")
 
@@ -49,34 +52,34 @@ code <- nimbleCode({
     tD[i] ~ dsilerNim(a1mult[i], a2mult[i], b1mult[i], b2mult[i], c1mult[i])
     
     log(a1mult[i]) <- log(a1) + betaSEX[1] * sex[i] + 
-      (betaINFCUB[1] * infection[i, 3] + betaINFADULT[1] * infection[i, 2]) + 
-      betaINBR[1] * inbr[i] * zINBR[1] +
-      betaSEXINBR[1] * sex[i] * inbr[i] * zSEXINBR[1] +
-      (betaINFINBRCUB[1] * infection[i, 3] + betaINFINBRADULT[1] * infection[i, 2]) * inbr[i] * zINFINBR[1]
-      
+      (betaINFCUB[1] * infection[i, 3] + betaINFADULT[1] * infection[i, 2]) +
+      betaINBR[1] * inbr[i] * zINBR[1]
+      #betaSEXINBR[1] * sex[i] * inbr[i] * zSEXINBR[1] +
+      #(betaINFINBRCUB[1] * infection[i, 3] + betaINFINBRADULT[1] * infection[i, 2]) * inbr[i] * zINFINBR[1]
+    
     log(a2mult[i]) <- log(a2) + betaSEX[2] * sex[i] + 
-      (betaINFCUB[2] * infection[i, 3] + betaINFADULT[2] * infection[i, 2]) + 
-      betaINBR[2] * inbr[i] * zINBR[2] +
-      betaSEXINBR[2] * sex[i] * inbr[i] * zSEXINBR[2] +
-      (betaINFINBRCUB[2] * infection[i, 3] + betaINFINBRADULT[2] * infection[i, 2]) * inbr[i] * zINFINBR[2]
+      (betaINFCUB[2] * infection[i, 3] + betaINFADULT[2] * infection[i, 2]) +
+      betaINBR[2] * inbr[i] * zINBR[2]
+      #betaSEXINBR[2] * sex[i] * inbr[i] * zSEXINBR[2] +
+      #(betaINFINBRCUB[2] * infection[i, 3] + betaINFINBRADULT[2] * infection[i, 2]) * inbr[i] * zINFINBR[2]
     
     log(b1mult[i]) <- log(b1) + betaSEX[3] * sex[i] + 
-      (betaINFCUB[3] * infection[i, 3] + betaINFADULT[3] * infection[i, 2]) + 
-      betaINBR[3] * inbr[i] * zINBR[3] +
-      betaSEXINBR[3] * sex[i] * inbr[i] * zSEXINBR[3] +
-      (betaINFINBRCUB[3] * infection[i, 3] + betaINFINBRADULT[3] * infection[i, 2]) * inbr[i] * zINFINBR[3]
+      (betaINFCUB[3] * infection[i, 3] + betaINFADULT[3] * infection[i, 2]) +
+      betaINBR[3] * inbr[i] * zINBR[3]
+      #betaSEXINBR[3] * sex[i] * inbr[i] * zSEXINBR[3] +
+      #(betaINFINBRCUB[3] * infection[i, 3] + betaINFINBRADULT[3] * infection[i, 2]) * inbr[i] * zINFINBR[3]
     
     log(b2mult[i]) <- log(b2) + betaSEX[4] * sex[i] + 
       (betaINFCUB[4] * infection[i, 3] + betaINFADULT[4] * infection[i, 2]) + 
-      betaINBR[4] * inbr[i] * zINBR[4] +
-      betaSEXINBR[4] * sex[i] * inbr[i] * zSEXINBR[4] +
-      (betaINFINBRCUB[4] * infection[i, 3] + betaINFINBRADULT[4] * infection[i, 2]) * inbr[i] * zINFINBR[4]
+      betaINBR[4] * inbr[i] * zINBR[4]
+      #betaSEXINBR * sex[i] * inbr[i] * zSEXINBR +
+      #(betaINFINBRCUB * infection[i, 3] + betaINFINBRADULT * infection[i, 2]) * inbr[i] * zINFINBR
     
     log(c1mult[i]) <- log(c1) + betaSEX[5] * sex[i] + 
-      (betaINFCUB[5] * infection[i, 3] + betaINFADULT[5] * infection[i, 2]) + 
-      betaINBR[5] * inbr[i] * zINBR[5] +
-      betaSEXINBR[5] * sex[i] * inbr[i] * zSEXINBR[5] +
-      (betaINFINBRCUB[5] * infection[i, 3] + betaINFINBRADULT[5] * infection[i, 2]) * inbr[i] * zINFINBR[5]
+      (betaINFCUB[5] * infection[i, 3] + betaINFADULT[5] * infection[i, 2]) +
+      betaINBR[5] * inbr[i] * zINBR[5]
+      #betaSEXINBR[5] * sex[i] * inbr[i] * zSEXINBR[5] +
+      #(betaINFINBRCUB[5] * infection[i, 3] + betaINFINBRADULT[5] * infection[i, 2]) * inbr[i] * zINFINBR[5]
     
     ## sampling component
     pd[i] <- exp(y[i] * log(mean.p) + (min(floor(tD[i]), tM[i]) - y[i]) * log(1 - mean.p))
@@ -89,16 +92,19 @@ code <- nimbleCode({
     betaINFCUB[k] ~ dnorm(0, sd = 1)
     betaINFADULT[k] ~ dnorm(0, sd = 1)
     betaINBR[k] ~ dnorm(0, sd = 1)
-    betaSEXINBR[k] ~ dnorm(0, sd = 1)
-    betaINFINBRCUB[k] ~ dnorm(0, sd = 1)
-    betaINFINBRADULT[k] ~ dnorm(0, sd = 1)
     zINBR[k] ~ dbern(0.5)
-    zSEXINBR[k] ~ dbern(0.5)
-    zINFINBR[k] ~ dbern(0.5)
-    constraint_dataSEXINBR[k] ~ dconstraint(zSEXINBR[k] <= zINBR[k])
-    constraint_dataINFINBR[k] ~ dconstraint(zINFINBR[k] <= zINBR[k])
-    
   }  
+  
+ 
+ # betaSEXINBR ~ dnorm(0, sd = 1)
+  #betaINFINBRCUB ~ dnorm(0, sd = 1)
+  #betaINFINBRADULT ~ dnorm(0, sd = 1)
+  
+  #zSEXINBR ~ dbern(0.5)
+  #zINFINBR ~ dbern(0.5)
+  #constraint_dataSEXINBR ~ dconstraint(zSEXINBR <= zINBR)
+  #constraint_dataINFINBR ~ dconstraint(zINFINBR <= zINBR)
+  
   a1 ~ dexp(1)
   a2 ~ dexp(1)
   b1 ~ dexp(1)
@@ -156,12 +162,12 @@ initFn <- function(cint, censored, model) {
       betaINBR = rnorm(5, 0, 1),
       betaINFCUB = rnorm(5, 0, 1),
       betaINFADULT = rnorm(5, 0, 1),
-      betaSEXINBR = rnorm(5, 0, 1),
-      betaINFINBRCUB = rnorm(5, 0, 1),
-      betaINFINBRADULT = rnorm(5, 0, 1),
-      zINBR = rep(0, 5),
-      zSEXINBR = rep(0, 5),
-      zINFINBR = rep(0, 5)
+      #betaSEXINBR = rnorm(1, 0, 1),
+      #betaINFINBRCUB = rnorm(1, 0, 1),
+      #betaINFINBRADULT = rnorm(1, 0, 1),
+      zINBR = rep(0, times = 5)
+#      zSEXINBR = 0,
+#      zINFINBR = 0
     )
     model$setInits(inits)
     valid <- ifelse(!is.finite(model$calculate()), 0, 1)
@@ -170,11 +176,11 @@ initFn <- function(cint, censored, model) {
 }
 
 ## set up data
-consts <- list(nind = nind, tM = tM, sex = sex, infection = infection, inbr = inbr)
+consts <- list(nind = nind, tM = tM, sex = sex, infection = infection, inbr = inbrCAT)
 
 data <- list(
-  y = y, cint = cint, censored = censored, tD = tD, dind = dind,
-  constraint_dataSEXINBR = rep(1, 5), constraint_dataINFINBR = rep(1, 5))
+  y = y, cint = cint, censored = censored, tD = tD, dind = dind)
+#  constraint_dataSEXINBR = 1, constraint_dataINFINBR = 1)
 
 ## build the model without initial values
 ## (will throw an initialisation warning)
@@ -195,7 +201,7 @@ config <- configureMCMC(model)
 config$removeSamplers(c("a1", "a2", "b1", "b2", "c1"))
 config$addSampler(target = c("a1"), type = 'slice', control = list(sliceWidth = 0.5, adaptInterval = 50))
 config$addSampler(target = c("a2"), type = 'slice', control = list(sliceWidth = 1.5, adaptInterval = 20))
-config$addSampler(target = c("b1"), type = 'slice', control = list(sliceWidth = 0.5, adaptInterval = 50))
+config$addSampler(target = c("b1"), type = 'slice', control = list(sliceWidth = 1.5, adaptInterval = 20))
 config$addSampler(target = c("b2"), type = 'slice', control = list(sliceWidth = 1.5, adaptInterval = 20))
 config$addSampler(target = c("c1"), type = 'slice', control = list(sliceWidth = 0.5, adaptInterval = 50))
 
@@ -204,12 +210,12 @@ source("ModelFitting/MCMC_RJ_multi.R")
 
 ## Add reversible jump
 configureRJ_multi(conf = config,   ## model configuration
-                  targetNodes = c("betaINBR", "betaSEXINBR", "betaINFINBRCUB", "betaINFINBRADULT"),
-                  indicatorNodes = c("zINBR", "zSEXINBR", "zINFINBR", "zINFINBR"),
+                  targetNodes = c("betaINBR"),
+                  indicatorNodes = c("zINBR"),
                   control = list(mean = 0, scale = 1))
 
-config$addMonitors("betaSEX", "betaINFCUB", "betaINFADULT", "betaINBR", "betaSEXINBR", "betaINFINBRCUB", "betaINFINBRADULT")
-
+config$addMonitors("betaSEX", "betaINFCUB", "betaINFADULT", "betaINBR")
+config
 ## build the model
 rIndicatorMCMC <- buildMCMC(config)
 
@@ -217,8 +223,8 @@ rIndicatorMCMC <- buildMCMC(config)
 cIndicatorMCMC <- compileNimble(rIndicatorMCMC, project = model)
 
 system.time(run <- runMCMC(cIndicatorMCMC, 
-                           niter = 500000, 
-                           nburnin = 20000, 
+                           niter = 50000, 
+                           nburnin = 8000, 
                            nchains = 2, 
                            progressBar = TRUE, 
                            summary = TRUE, 
@@ -226,7 +232,7 @@ system.time(run <- runMCMC(cIndicatorMCMC,
                            thin = 1))
 
 ## save mcmc ouput
-saveRDS(run, "outputs/Sex3InfectionInbr_AllParameters_runsamples.rds")
+saveRDS(run, "outputs/m1_zOnInbrCATmed_AllParams_runsamples.rds")
 
 samples <- as.matrix(run$samples)
 #saveRDS(samples, "outputs/Sex3Infection_AllParameters_samples.rds")
@@ -248,7 +254,7 @@ MCMCsummary(run$samples)
 #samples <- readRDS("outputs/Sex3Infection_AllParameters_samples.rds")
 
 ## Marginal probabilities of inclusion for each variable
-zNames <- model$expandNodeNames(c('zINBR', 'zSEXINBR', 'zINFINBR'))
+zNames <- model$expandNodeNames(c('zINBR'))
 zCols <- which(colnames(samples) %in% zNames)
 binary <- as.data.table((samples[, zCols] != 0) + 0)
 res <- binary[ , .N, by=names(binary)]
@@ -256,13 +262,13 @@ res <- res[order(N, decreasing = T)]
 res <- res[, prob := N/dim(samples)[1]]
 res
 res
-saveRDS(res, "outputs/Sex3InfectionInbr_AllParameters_PosteriorModelProbs.rds")
+saveRDS(res, "outputs/m1_InbrCATmed_b2_PosteriorModelProbs.rds")
 #res <- readRDS("outputs/Sex3Infection_AllParameters_PosteriorModelProbs.rds")
 
 samples <- as.data.frame(samples)
 
 z_indicators <- samples %>%
-  select(c(42:56)) %>%
+  select(c(27:31)) %>%
   colSums()
 
 z_indicators <- data.frame(z_indicators/sum(res$N))
