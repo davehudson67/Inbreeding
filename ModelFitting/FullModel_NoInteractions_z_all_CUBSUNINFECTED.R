@@ -25,8 +25,9 @@ library(data.table)
 rm(list=ls())
 
 ## load data
-#load("Data/badgerSexInb_FullLifeInfvUninf.RData")
-load("Data/badgerSexInb_AdultInfvCubInfvUninf.RData")
+load("Data/badgerSexInb_FullLifeInfvUninf.RData")
+#load("Data/badgerSexInb_AdultInfvCubInfvUninf.RData")
+load("Data/badgerSexInb_ICubvUninf.RData")
 
 ## load distributions
 source("../SimulationStudy/FirstPaperFiles/Distributions/Dist_Siler.R")
@@ -49,23 +50,23 @@ code <- nimbleCode({
     tD[i] ~ dsilerNim(a1mult[i], a2mult[i], b1mult[i], b2mult[i], c1mult[i])
     
     log(a1mult[i]) <- log(a1) + betaSEX[1] * sex[i] * zSEX[1] + 
-      (betaINFCUB[1] * infection[i, 3] + betaINFADULT[1] * infection[i, 2]) * zINF[1] + 
+      betaINFCUB[1] * infection[i]* zINF[1] + 
       betaINBR[1] * inbr[i] * zINBR[1]
     
     log(a2mult[i]) <- log(a2) + betaSEX[2] * sex[i] * zSEX[2] + 
-      (betaINFCUB[2] * infection[i, 3] + betaINFADULT[2] * infection[i, 2]) * zINF[2] + 
+      betaINFCUB[2] * infection[i] * zINF[2] + 
       betaINBR[2] * inbr[i] * zINBR[2]
     
     log(b1mult[i]) <- log(b1) + betaSEX[3] * sex[i] * zSEX[3] + 
-      (betaINFCUB[3] * infection[i, 3] + betaINFADULT[3] * infection[i, 2]) * zINF[3] + 
+      betaINFCUB[3] * infection[i] * zINF[3] + 
       betaINBR[3] * inbr[i] * zINBR[3]
     
     log(b2mult[i]) <- log(b2) + betaSEX[4] * sex[i] * zSEX[4] + 
-      (betaINFCUB[4] * infection[i, 3] + betaINFADULT[4] * infection[i, 2]) * zINF[4] + 
+      betaINFCUB[4] * infection[i]  * zINF[4] + 
       betaINBR[4] * inbr[i] * zINBR[4]
     
     log(c1mult[i]) <- log(c1) + betaSEX[5] * sex[i] * zSEX[5] + 
-      (betaINFCUB[5] * infection[i, 3] + betaINFADULT[5] * infection[i, 2]) * zINF[5] + 
+      betaINFCUB[5] * infection[i] * zINF[5] + 
       betaINBR[5] * inbr[i] * zINBR[5]
     
     
@@ -78,7 +79,6 @@ code <- nimbleCode({
   for (k in 1:5) {
     betaSEX[k] ~ dnorm(0, sd = 1)
     betaINFCUB[k] ~ dnorm(0, sd = 1)
-    betaINFADULT[k] ~ dnorm(0, sd = 1)
     betaINBR[k] ~dnorm(0, sd = 1)
     zSEX[k] ~ dbern(0.5)
     zINF[k] ~ dbern(0.5)
@@ -148,7 +148,7 @@ initFn <- function(cint, censored, sex, infection3, model) {
             mean.p = runif(1, 0, 1),
             betaSEX = rnorm(5, 0, 1),
             betaINFCUB = rnorm(5, 0, 1),
-            betaINFADULT = rnorm(5, 0, 1),
+            #betaINFADULT = rnorm(5, 0, 1),
             #betaSEXINFCUB = rnorm(5, 0, 1),
             #betaSEXINFADULT = rnorm(5, 0, 1),
             betaINBR  = rnorm(5, 0, 1),
@@ -185,22 +185,22 @@ for(k in 1:2) {
 ## configure MCMC
 config <- configureMCMC(model)
 config$removeSamplers(c("a1", "a2", "b1", "b2", "c1"))
-config$addSampler(target = c("a1"), type = 'slice', control = list(sliceWidth = 0.5, adaptInterval = 50))
-config$addSampler(target = c("a2"), type = 'slice', control = list(sliceWidth = 1.5, adaptInterval = 20))
-config$addSampler(target = c("b1"), type = 'slice', control = list(sliceWidth = 0.5, adaptInterval = 50))
-config$addSampler(target = c("b2"), type = 'slice', control = list(sliceWidth = 1.5, adaptInterval = 20))
-config$addSampler(target = c("c1"), type = 'slice', control = list(sliceWidth = 0.5, adaptInterval = 50))
+config$addSampler(target = c("a1"), type = 'slice', control = list(sliceWidth = 1.5, adaptInterval = 30))
+config$addSampler(target = c("a2"), type = 'slice', control = list(sliceWidth = 1.5, adaptInterval = 30))
+config$addSampler(target = c("b1"), type = 'slice', control = list(sliceWidth = 1.5, adaptInterval = 30))
+config$addSampler(target = c("b2"), type = 'slice', control = list(sliceWidth = 1.5, adaptInterval = 30))
+config$addSampler(target = c("c1"), type = 'slice', control = list(sliceWidth = 1.5, adaptInterval = 30))
 
 ## load in custom RJ-MCMC samplers
 source("ModelFitting/MCMC_RJ_multi.R")
 
 ## Add reversible jump
 configureRJ_multi(conf = config,   ## model configuration
-    targetNodes = c("betaSEX", "betaINFCUB", "betaINFADULT", "betaINBR"),
-    indicatorNodes = c("zSEX", "zINF", "zINF", "zINBR"),
+    targetNodes = c("betaSEX", "betaINFCUB", "betaINBR"),
+    indicatorNodes = c("zSEX", "zINF", "zINBR"),
     control = list(mean = 0, scale = 1))
                       
-config$addMonitors("betaSEX", "betaINFCUB", "betaINFADULT", "betaINBR")
+config$addMonitors("betaSEX", "betaINFCUB", "betaINBR")
 config
 
 rIndicatorMCMC <- buildMCMC(config)

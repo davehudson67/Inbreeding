@@ -58,8 +58,9 @@ inbrCAT <- if_else(inbrCAT >= median(inbrCAT), 1, 0) # (inbred = 1, outbred = 0)
 ## filter to required badgers - for Infected at any point in life vs Uninfected life ##
 ## set variables
 sex <- as.numeric(CH$sex) - 1 # (males = 1, females = 0)
-infection <- CH$infected_lifetime # (infected lifetime = 1, uninfected lifetime = 0)
-infection[CH$infected_as_cub == 1] <- 2
+infection <- rep(0, nrow(CH))
+#infection[CH$infected_lifetime == 0] # (infected lifetime = 1, uninfected lifetime = 0)
+infection[CH$infected_as_cub == 1] <- 1
 
 inbr <- CH$hom
 inbrCAT <- CH$hom
@@ -149,6 +150,6 @@ zU <- tKD
 ## save data
 #rm(tL, CH, tB)
 
-#save.image("Data/badgerSexInb_ICubvUninf.RData")
+save.image("Data/badgerSexInb_ICubvUninf.RData")
 #save.image("Data/badgerSexInb_FullLifeInfvUninf.RData")
 save.image("Data/badgerSexInb_AdultInfvCubInfvUninf.RData")

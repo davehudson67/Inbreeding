@@ -21,6 +21,7 @@ library(mcmcplots)
 library(MCMCvis)
 library(scales)
 library(data.table)
+library(haven)
 
 rm(list=ls())
 
@@ -34,7 +35,7 @@ source("../SimulationStudy/FirstPaperFiles/Distributions/Dist_SilerNim.R")
 source("../SimulationStudy/FirstPaperFiles/ModelComparison_FUNCTIONS.R")
 
 ## set seed
-set.seed(seeds[11])
+set.seed(seeds[15])
 
 ## set up plot output file
 #pdf("outputs/Sex3Infection_AllParameters.pdf")
@@ -50,24 +51,28 @@ code <- nimbleCode({
     
     log(a1mult[i]) <- log(a1) + betaSEX[1] * sex[i] * zSEX[1] + 
       (betaINFCUB[1] * infection[i, 3] + betaINFADULT[1] * infection[i, 2]) * zINF[1] + 
-      betaINBR[1] * inbr[i] * zINBR[1]
+      sex[i] * (betaSEXINFCUB[1] * infection[i, 3] + betaSEXINFADULT[1] * infection[i, 2]) * zSEXINF[1] +
+      epsilona1[i]
     
     log(a2mult[i]) <- log(a2) + betaSEX[2] * sex[i] * zSEX[2] + 
       (betaINFCUB[2] * infection[i, 3] + betaINFADULT[2] * infection[i, 2]) * zINF[2] + 
-      betaINBR[2] * inbr[i] * zINBR[2]
+      sex[i] * (betaSEXINFCUB[2] * infection[i, 3] + betaSEXINFADULT[2] * infection[i, 2]) * zSEXINF[2] +
+      epsilona2[i]
     
     log(b1mult[i]) <- log(b1) + betaSEX[3] * sex[i] * zSEX[3] + 
       (betaINFCUB[3] * infection[i, 3] + betaINFADULT[3] * infection[i, 2]) * zINF[3] + 
-      betaINBR[3] * inbr[i] * zINBR[3]
+      sex[i] * (betaSEXINFCUB[3] * infection[i, 3] + betaSEXINFADULT[3] * infection[i, 2]) * zSEXINF[3] +
+      epsilonb1[i]
     
     log(b2mult[i]) <- log(b2) + betaSEX[4] * sex[i] * zSEX[4] + 
       (betaINFCUB[4] * infection[i, 3] + betaINFADULT[4] * infection[i, 2]) * zINF[4] + 
-      betaINBR[4] * inbr[i] * zINBR[4]
+      sex[i] * (betaSEXINFCUB[4] * infection[i, 3] + betaSEXINFADULT[4] * infection[i, 2]) * zSEXINF[4] +
+      epsilonb2[i]
     
     log(c1mult[i]) <- log(c1) + betaSEX[5] * sex[i] * zSEX[5] + 
       (betaINFCUB[5] * infection[i, 3] + betaINFADULT[5] * infection[i, 2]) * zINF[5] + 
-      betaINBR[5] * inbr[i] * zINBR[5]
-    
+      sex[i] * (betaSEXINFCUB[5] * infection[i, 3] + betaSEXINFADULT[5] * infection[i, 2]) * zSEXINF[5] +
+      epsilonc1[i]
     
     ## sampling component
     pd[i] <- exp(y[i] * log(mean.p) + (min(floor(tD[i]), tM[i]) - y[i]) * log(1 - mean.p))
@@ -79,11 +84,12 @@ code <- nimbleCode({
     betaSEX[k] ~ dnorm(0, sd = 1)
     betaINFCUB[k] ~ dnorm(0, sd = 1)
     betaINFADULT[k] ~ dnorm(0, sd = 1)
-    betaINBR[k] ~dnorm(0, sd = 1)
+    betaSEXINFCUB[k] ~ dnorm(0, sd = 1)
+    betaSEXINFADULT[k] ~ dnorm(0, sd = 1)
     zSEX[k] ~ dbern(0.5)
     zINF[k] ~ dbern(0.5)
-    zINBR[k] ~ dbern(0.5)
-    
+    zSEXINF[k] ~ dbern(0.5)
+    constraint_dataSEXINF[k] ~ dconstraint(zSEXINF[k] <= zSEX[k] * zINF[k])
   }  
   a1 ~ dexp(1)
   a2 ~ dexp(1)
@@ -92,15 +98,22 @@ code <- nimbleCode({
   c1 ~ dexp(1)
   mean.p ~ dunif(0, 1)
   
+  for (b in 1:nind){
+    epsilona1[b] ~ dnorm(0, sd = 1)
+    epsilona2[b] ~ dnorm(0, sd = 1)
+    epsilonb1[b] ~ dnorm(0, sd = 1)
+    epsilonb2[b] ~ dnorm(0, sd = 1)
+    epsilonc1[b] ~ dnorm(0, sd = 1)
+  }
+  
 })
 
 ## set up data
-consts <- list(nind = nind, tM = tM, sex = sex, infection = infection, inbr = inbrCAT)
+consts <- list(nind = nind, tM = tM, sex = sex, infection = infection)
 
 data <- list(
-    y = y, cint = cint, censored = censored, tD = tD, dind = dind)
-#    constraint_dataSEXINF = rep(1, 5), constraint_dataSEXINBR = rep(1, 5),
-#    constraint_dataINFINBR = rep(1, 5))
+    y = y, cint = cint, censored = censored, tD = tD, dind = dind,
+    constraint_dataSEXINF = rep(1, 5))
 
 ## find overdispersed initial values
 tinitFn <- function(cint, censored) {
@@ -149,18 +162,16 @@ initFn <- function(cint, censored, sex, infection3, model) {
             betaSEX = rnorm(5, 0, 1),
             betaINFCUB = rnorm(5, 0, 1),
             betaINFADULT = rnorm(5, 0, 1),
-            #betaSEXINFCUB = rnorm(5, 0, 1),
-            #betaSEXINFADULT = rnorm(5, 0, 1),
-            betaINBR  = rnorm(5, 0, 1),
-            #betaSEXINBR = rnorm(5, 0, 1),
-            #betaINFINBRADULT = rnorm(5, 0, 1),
-            #betaINFINBRCUB = rnorm(5, 0, 1),
+            betaSEXINFCUB = rnorm(5, 0, 1),
+            betaSEXINFADULT = rnorm(5, 0, 1),
             zSEX = rep(0, 5),
             zINF = rep(0, 5),
-            #zSEXINF = rep(0, 5),
-            zINBR = rep(0, 5)
-            #zSEXINBR = rep(0, 5),
-            #zINFINBR = rep(0, 5)
+            zSEXINF = rep(0, 5),
+            epsilona1 = rnorm(nind, 0, 1),
+            epsilona2 = rnorm(nind, 0, 1),
+            epsilonb1 = rnorm(nind, 0, 1),
+            epsilonb2 = rnorm(nind, 0, 1),
+            epsilonc1 = rnorm(nind, 0, 1)
         )
         model$setInits(inits)
         valid <- ifelse(!is.finite(model$calculate()), 0, 1)
@@ -181,34 +192,34 @@ inits <- list()
 for(k in 1:2) {
     inits[[k]] <- initFn(cint, censored, sex, infection3, cIndicatorModel)
 }
-
+nind <- length(dind)
 ## configure MCMC
 config <- configureMCMC(model)
 config$removeSamplers(c("a1", "a2", "b1", "b2", "c1"))
-config$addSampler(target = c("a1"), type = 'slice', control = list(sliceWidth = 0.5, adaptInterval = 50))
-config$addSampler(target = c("a2"), type = 'slice', control = list(sliceWidth = 1.5, adaptInterval = 20))
-config$addSampler(target = c("b1"), type = 'slice', control = list(sliceWidth = 0.5, adaptInterval = 50))
-config$addSampler(target = c("b2"), type = 'slice', control = list(sliceWidth = 1.5, adaptInterval = 20))
-config$addSampler(target = c("c1"), type = 'slice', control = list(sliceWidth = 0.5, adaptInterval = 50))
+config$addSampler(target = c("a1"), type = 'slice', control = list(sliceWidth = 1.5, adaptInterval = 30))
+config$addSampler(target = c("a2"), type = 'slice', control = list(sliceWidth = 1.5, adaptInterval = 30))
+config$addSampler(target = c("b1"), type = 'slice', control = list(sliceWidth = 1.5, adaptInterval = 30))
+config$addSampler(target = c("b2"), type = 'slice', control = list(sliceWidth = 1.5, adaptInterval = 30))
+config$addSampler(target = c("c1"), type = 'slice', control = list(sliceWidth = 1.5, adaptInterval = 30))
 
 ## load in custom RJ-MCMC samplers
 source("ModelFitting/MCMC_RJ_multi.R")
 
 ## Add reversible jump
 configureRJ_multi(conf = config,   ## model configuration
-    targetNodes = c("betaSEX", "betaINFCUB", "betaINFADULT", "betaINBR"),
-    indicatorNodes = c("zSEX", "zINF", "zINF", "zINBR"),
+    targetNodes = c("betaSEX", "betaINFCUB", "betaINFADULT", "betaSEXINFCUB", "betaSEXINFADULT"),
+    indicatorNodes = c("zSEX", "zINF", "zINF", "zSEXINF", "zSEXINF"),
     control = list(mean = 0, scale = 1))
                       
-config$addMonitors("betaSEX", "betaINFCUB", "betaINFADULT", "betaINBR")
+config$addMonitors("betaSEX", "betaINFCUB", "betaINFADULT", "betaSEXINFCUB", "betaSEXINFADULT", "tD")
 config
 
 rIndicatorMCMC <- buildMCMC(config)
 cIndicatorMCMC <- compileNimble(rIndicatorMCMC, project = model)
 
 system.time(run <- runMCMC(cIndicatorMCMC, 
-    niter = 300000, 
-    nburnin = 24000, 
+    niter = 50000, 
+    nburnin = 10000, 
     nchains = 2, 
     inits = inits[[1]],
     progressBar = TRUE, 
@@ -217,8 +228,7 @@ system.time(run <- runMCMC(cIndicatorMCMC,
     thin = 1))
 
 ## save mcmc ouput
-saveRDS(run, "outputs/FullModel_InbrCont_NoInteractions_z_all_runsamples.rds")
-run <- readRDS("outputs/FullModel_InbrCont_NoInteractions_z_all_runsamples.rds")
+saveRDS(run, "outputs/Sex3Infection_AllParameters_runsamples.rds")
 
 samples <- as.matrix(run$samples)
 #saveRDS(samples, "outputs/Sex3Infection_AllParameters_samples.rds")
@@ -240,7 +250,7 @@ MCMCsummary(run$samples)
 #samples <- readRDS("outputs/Sex3Infection_AllParameters_samples.rds")
 
 ## Marginal probabilities of inclusion for each variable
-zNames <- model$expandNodeNames(c('z', 'zSEX', 'zINF', 'zINBR'))
+zNames <- model$expandNodeNames(c('z', 'zSEX', 'zINF', 'zSEXINF'))
 zCols <- which(colnames(samples) %in% zNames)
 binary <- as.data.table((samples[, zCols] != 0) + 0)
 res <- binary[ , .N, by=names(binary)]
@@ -248,27 +258,65 @@ res <- res[order(N, decreasing = T)]
 res <- res[, prob := N/dim(samples)[1]]
 res
 res
-saveRDS(res, "outputs/FullModel_NoInteractions_z_all_PosteriorModelProbs1.rds")
-res <- readRDS("outputs/FullModel_NoInteractions_z_all_PosteriorModelProbs1.rds")
+saveRDS(res, "outputs/Sex3Infection_AllParameters_PosteriorModelProbs.rds")
+#res <- readRDS("outputs/Sex3Infection_AllParameters_PosteriorModelProbs.rds")
 
 samples <- as.data.frame(samples)
 
 z_indicators <- samples %>%
-  select(c(27:41)) %>%
+  select(c(32:46)) %>%
   colSums()
 
 z_indicators <- data.frame(z_indicators/sum(res$N))
-#z_indicators$parameter <- c("a1_Inf", "a2_Inf", "b1_Inf", "b2_Inf", "c_Inf",
-#                            "a1_Sex", "a2_Sex", "b1_Sex", "b2_Sex", "c_Sex",
-#                            "a1_SexInf", "a2SexInf", "b1SexInf", "b2SexInf", "cSexInf")
+z_indicators$parameter <- c("a1_Inf", "a2_Inf", "b1_Inf", "b2_Inf", "c_Inf",
+                            "a1_Sex", "a2_Sex", "b1_Sex", "b2_Sex", "c_Sex",
+                            "a1_SexInf", "a2SexInf", "b1SexInf", "b2SexInf", "cSexInf")
                             
-z_indicators$z <- rownames(z_indicators)
-colnames(z_indicators) <- c("Inclusion_Prob", "z")
-z_indicators$variable <- rep(c("Inbreeding", "Infection", "Sex"), each = 5)
+colnames(z_indicators) <- c("Inclusion_Prob", "parameter")
 
-incl <- ggplot(z_indicators, aes(x = z, y = Inclusion_Prob)) +
-  geom_point(aes(colour = variable)) + 
-  geom_hline(yintercept = 0.5, colour = "red") +
-  scale_y_continuous(limits = c(0,1)) + 
-  labs(title = "Main effects only model | Continuous inbreeding", subtitle = "[1] = a1, [2] = a2, [3] = b1, [4] = b2, [5] = c")
-incl
+z_indicators
+
+ggplot(z_indicators, aes(x = parameter, y = Inclusion_Prob)) +
+  geom_point()
+
+
+
+#################################################################################################################
+## Extract death times
+
+dt <- as.data.frame(samples) %>%
+  select(starts_with("tD"))
+
+dt <- apply(dt, 2, mean)
+
+dt_inbr <- data.frame(dt, inbr, sex)
+dt_inbr$sex <- as.factor(dt_inbr$sex)
+
+ggplot(dt_inbr) +
+  geom_point(aes(x = dt, y = inbr)) + 
+  facet_wrap(~ sex)
+
+hist(dt)
+
+dt_inbr %>%
+  filter(dt > 32) %>%
+  ggplot() +
+  geom_point(aes(x = dt, y = inbr, colour = sex)) + 
+  labs(x = "inferred death age - 1/4 yrs", y = "MLHomozygosity")
+
+
+
+badgersS <- Surv(dt_inbr$dt, rep(1, nrow(dt_inbr)))
+
+
+fit <- survfit(badgersS ~ inbrCAT + infection3)
+
+ggsurvplot(fit, data = badgersS, risk.table = TRUE,
+           conf.int = FALSE, pval = TRUE, title = "Kaplan-Meier plot of survival probability",
+           legend = "right")
+
+
+
+
+
+

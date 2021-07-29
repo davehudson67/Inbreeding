@@ -34,21 +34,17 @@ source("../SimulationStudy/FirstPaperFiles/Distributions/Dist_SilerNim.R")
 source("../SimulationStudy/FirstPaperFiles/ModelComparison_FUNCTIONS.R")
 
 ## set seed
-set.seed(seeds[15])
+set.seed(seeds[8])
 
 ## set inbreeding category 
 median(inbr)
 
 inbr_level0 <- quantile(inbr, probs = 0.333)
 inbr_level1 <- quantile(inbr, probs = 0.666)
-MLH30 <- if_else(inbr < inbr_level0, 1, 0)
-MLH31 <- if_else(inbr >= inbr_level0 & inbr < inbr_level1, 1, 0)
-MLH32 <- if_else(inbr > inbr_level1, 1, 0)
-MLH3 <- data.frame(MLH30, MLH31, MLH32)
-
-inbrCAT <- as.factor(if_else(inbr >= inbr_level, 1, 0)) # (inbred = 1, outbred = 0)
-summary(inbrCAT)
-
+MLH3low <- if_else(inbr <= inbr_level0, 1, 0)
+MLH3mid <- if_else(inbr > inbr_level0 & inbr <= inbr_level1, 1, 0)
+MLH3high <- if_else(inbr > inbr_level1, 1, 0)
+MLH3 <- data.frame(MLH3low, MLH3mid, MLH3high)
 
 ## set up plot output file
 #pdf("outputs/Sex3Infection_AllParameters.pdf")
@@ -227,11 +223,11 @@ for(k in 1:2) {
 ## configure MCMC
 config <- configureMCMC(model)
 config$removeSamplers(c("a1", "a2", "b1", "b2", "c1"))
-config$addSampler(target = c("a1"), type = 'slice', control = list(sliceWidth = 0.5, adaptInterval = 50))
-config$addSampler(target = c("a2"), type = 'slice', control = list(sliceWidth = 1.5, adaptInterval = 20))
-config$addSampler(target = c("b1"), type = 'slice', control = list(sliceWidth = 0.5, adaptInterval = 50))
-config$addSampler(target = c("b2"), type = 'slice', control = list(sliceWidth = 1.5, adaptInterval = 20))
-config$addSampler(target = c("c1"), type = 'slice', control = list(sliceWidth = 0.5, adaptInterval = 50))
+config$addSampler(target = c("a1"), type = 'slice', control = list(sliceWidth = 1.5, adaptInterval = 30))
+config$addSampler(target = c("a2"), type = 'slice', control = list(sliceWidth = 1.5, adaptInterval = 30))
+config$addSampler(target = c("b1"), type = 'slice', control = list(sliceWidth = 1.5, adaptInterval = 30))
+config$addSampler(target = c("b2"), type = 'slice', control = list(sliceWidth = 1.5, adaptInterval = 30))
+config$addSampler(target = c("c1"), type = 'slice', control = list(sliceWidth = 1.5, adaptInterval = 30))
 
 ## load in custom RJ-MCMC samplers
 source("ModelFitting/MCMC_RJ_multi.R")
@@ -240,7 +236,7 @@ source("ModelFitting/MCMC_RJ_multi.R")
 configureRJ_multi(conf = config,   ## model configuration
     targetNodes = c("betaSEX", "betaINFCUB", "betaINFADULT", "betaINBRmid", "betaINBRhigh"),
     indicatorNodes = c("zSEX", "zINF", "zINF", "zINBR", "zINBR"),
-    control = list(mean = 0, scale = 1))
+    control = list(mean = 0, scale = 1.5))
                       
 config$addMonitors("betaSEX", "betaINFCUB", "betaINFADULT", "betaINBRmid", "betaINBRhigh")
 config
@@ -249,8 +245,8 @@ rIndicatorMCMC <- buildMCMC(config)
 cIndicatorMCMC <- compileNimble(rIndicatorMCMC, project = model)
 
 system.time(run <- runMCMC(cIndicatorMCMC, 
-    niter = 100000, 
-    nburnin = 10000, 
+    niter = 300000, 
+    nburnin = 17000, 
     nchains = 2, 
     inits = inits[[1]],
     progressBar = TRUE, 
@@ -259,7 +255,7 @@ system.time(run <- runMCMC(cIndicatorMCMC,
     thin = 1))
 
 ## save mcmc ouput
-saveRDS(run, "outputs/FullModel_NoInteractions_z_all_InbrD02_runsamples.rds")
+saveRDS(run, "outputs/FullModel_NoInteractions_z_all_InbrTert_runsamples.rds")
 #run <- readRDS("outputs/FullModel_NoInteractions_z_all_runsamples.rds")
 
 samples <- as.matrix(run$samples)
@@ -296,17 +292,22 @@ saveRDS(res, "outputs/FullModel_InbrCont_NoInteractions_z_all_PosteriorModelProb
 samples <- as.data.frame(samples)
 
 z_indicators <- samples %>%
-  select(c(27:41)) %>%
+  select(c(32:46)) %>%
   colSums()
 
 z_indicators <- data.frame(z_indicators/sum(res$N))
-z_indicators$parameter <- c("a1_Inf", "a2_Inf", "b1_Inf", "b2_Inf", "c_Inf",
-                            "a1_Sex", "a2_Sex", "b1_Sex", "b2_Sex", "c_Sex",
-                            "a1_SexInf", "a2SexInf", "b1SexInf", "b2SexInf", "cSexInf")
-                            
-colnames(z_indicators) <- c("Inclusion_Prob", "parameter")
+#z_indicators$parameter <- c("a1_Inf", "a2_Inf", "b1_Inf", "b2_Inf", "c_Inf",
+#                            "a1_Sex", "a2_Sex", "b1_Sex", "b2_Sex", "c_Sex",
+#                            "a1_SexInf", "a2SexInf", "b1SexInf", "b2SexInf", "cSexInf")
 
-z_indicators
+z_indicators$z <- rownames(z_indicators)
+colnames(z_indicators) <- c("Inclusion_Prob", "z")
+z_indicators$variable <- rep(c("Inbreeding", "Infection", "Sex"), each = 5)
 
-ggplot(z_indicators, aes(x = parameter, y = Inclusion_Prob)) +
-  geom_point()
+incl <- ggplot(z_indicators, aes(x = z, y = Inclusion_Prob)) +
+  geom_point(aes(colour = variable)) + 
+  geom_hline(yintercept = 0.5, colour = "red") +
+  scale_y_continuous(limits = c(0,1)) + 
+  labs(title = "Main effects only model | Continuous inbreeding", subtitle = "[1] = a1, [2] = a2, [3] = b1, [4] = b2, [5] = c")
+incl
+
