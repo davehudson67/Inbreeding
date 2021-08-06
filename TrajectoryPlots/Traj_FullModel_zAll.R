@@ -133,24 +133,28 @@ saveRDS(postSurv, "outputs/PostSurv_FullModel_inbrCONT_zAll.rds")
 saveRDS(postMort, "outputs/PostMort_FullModel_inbrCONT_zAll.rds")
 
 ## mortality plot
-p1 <- ggplot(postMort, aes(x = t)) +
-  geom_line(aes(y = Median, colour = MLH)) +
-  geom_ribbon(aes(ymin = LCI, ymax = UCI, fill = MLH), alpha = 0.2) +
-  facet_grid(Sex ~ Infection) +
-  labs(title = "Mortality") +
-  # scale_y_continuous(limits = c(0, 0.5)) +
-  ylab("Posterior predictive mortality rate") +
-  xlab("Time")
+p1 <- mutate(postMort, Infection = factor(Infection)) %>%
+  mutate(Infection = factor(Infection, levels = rev(levels(Infection)))) %>%
+  ggplot(aes(x = t)) +
+    geom_line(aes(y = Median, colour = MLH)) +
+    geom_ribbon(aes(ymin = LCI, ymax = UCI, fill = MLH), alpha = 0.2) +
+    facet_grid(Sex ~ Infection) +
+    labs(title = "Mortality") +
+    # scale_y_continuous(limits = c(0, 0.5)) +
+    ylab("Posterior predictive mortality rate") +
+    xlab("Time")
 
 ## survival plot
-p2 <- ggplot(postSurv, aes(x = t)) +
-  geom_line(aes(y = Median, colour = MLH)) +
-  geom_ribbon(aes(ymin = LCI, ymax = UCI, fill = MLH), alpha = 0.2) +
-  facet_grid(Sex ~ Infection) +
-  labs(title = "Survival") +
-  scale_y_continuous(limits = c(0, 1)) +
-  ylab("Posterior predictive probability") +
-  xlab("Time")
+p2 <- mutate(postSurv, Infection = factor(Infection)) %>%
+  mutate(Infection = factor(Infection, levels = rev(levels(Infection)))) %>%
+  ggplot(aes(x = t)) +
+    geom_line(aes(y = Median, colour = MLH)) +
+    geom_ribbon(aes(ymin = LCI, ymax = UCI, fill = MLH), alpha = 0.2) +
+    facet_grid(Sex ~ Infection) +
+    labs(title = "Survival") +
+    scale_y_continuous(limits = c(0, 1)) +
+    ylab("Posterior predictive probability") +
+    xlab("Time")
 
 p <- p1 + p2 + plot_layout(guides = "collect") & theme(legend.position = "bottom")
-ggsave("predictivePosteriors.pdf", p)
+ggsave("predictivePosteriors.pdf", p, width = 10, height = 5)
