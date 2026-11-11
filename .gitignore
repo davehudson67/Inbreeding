@@ -1,4 +1,26 @@
-.Rproj.user
+.Rproj.user/
 .Rhistory
 .RData
 .Ruserdata
+.Renviron
+.env
+.env.*
+outputs/
+results/
+chains/
+logs/
+data/
+*.Rout
+*.RDS
+*.rds
+*.RData
+*.rda
+
+# Retain empty directory placeholders
+!data/
+data/*
+!data/.gitkeep
+
+!outputs/
+outputs/*
+!outputs/.gitkeep

@@ -1,0 +1,239 @@
+---
+title: "MainAnalysisCode"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, eval = FALSE, tidy=TRUE, tidy.opts=list(width.cutoff = 60))
+```
+
+## R Markdown Code:
+
+## load libraries
+
+```{r }
+library(nimble)
+
+```
+
+## load data
+```{r }
+load("BadgerDataSUBMISSION.RData")
+```
+
+## define model in Nimble
+```{r }
+code <- nimbleCode({
+  
+  ## survival components for dead badgers
+  for (i in 1:nind) {
+    
+    ## likelihood for interval-truncated siler
+    censored[i] ~ dinterval(tD[i], cint[i, ])
+    tD[i] ~ dgompzMakeNim(amult[i], bmult[i], c1mult[i])
+    
+    log(amult[i]) <- log(a) + betaSEX[1] * sex[i] * zSEX[1] + 
+      betaINF[1] * infection[i] * zINF[1] +
+      betaINBR[1] * inbr[i] * zINBR[1] +
+      betaINFSEX[1] * infection[i] * sex[i] * zINFSEX[1] +
+      betaINBRINF[1] * inbr[i] * infection[i] * zINBRINF[1] +
+      betaINBRSEX[1] * inbr[i] * sex[i] * zINBRSEX[1] +
+      betaINBRINFSEX[1] * inbr[i] * infection[i] * sex[i] * zINBRINFSEX[1] +
+      gammaSG[SG[i]]
+    
+    log(bmult[i]) <- log(b) + betaSEX[2] * sex[i] * zSEX[2]  + 
+      betaINF[2] * infection[i] * zINF[2]  + 
+      betaINBR[2] * inbr[i] * zINBR[2] +
+      betaINFSEX[2] * infection[i] * sex[i] * zINFSEX[2] +
+      betaINBRINF[2] * inbr[i] * infection[i] * zINBRINF[2] +
+      betaINBRSEX[2] * inbr[i] * sex[i] * zINBRSEX[2] +
+      betaINBRINFSEX[2] * inbr[i] * infection[i] * sex[i] * zINBRINFSEX[2]
+    
+    log(c1mult[i]) <- log(c1) + betaSEX[3] * sex[i] * zSEX[3]  + 
+      betaINF[3] * infection[i] * zINF[3]  + 
+      betaINBR[3] * inbr[i] * zINBR[3] +
+      betaINFSEX[3] * infection[i] * sex[i] * zINFSEX[3] +
+      betaINBRINF[3] * inbr[i] * infection[i] * zINBRINF[3] +
+      betaINBRSEX[3] * inbr[i] * sex[i] * zINBRSEX[3] +
+      betaINBRINFSEX[3] * inbr[i] * infection[i] * sex[i] * zINBRINFSEX[3] +
+      gammaSG[SG[i]]
+    
+    ## sampling component
+    pd[i] <- exp(y[i] * log(mean.p) + (min(floor(tD[i]), tM[i]) - y[i]) * log(1 - mean.p))
+    dind[i] ~ dbern(pd[i])
+  }
+  
+  ## priors
+  for (k in 1:3) {
+    betaSEX[k] ~ dnorm(0, sd = 1)
+    betaINF[k] ~ dnorm(0, sd = 1)
+    betaINBR[k] ~ dnorm(0, sd = 1)
+    betaINFSEX[k] ~ dnorm(0, sd = 1)
+    betaINBRINF[k] ~ dnorm(0, sd = 1)
+    betaINBRSEX[k] ~ dnorm(0, sd = 1)
+    betaINBRINFSEX[k] ~ dnorm(0, sd = 1)
+    zSEX[k] ~ dbern(0.5)
+    zINF[k] ~ dbern(0.5)
+    zINBR[k] ~ dbern(0.5)
+    zINFSEX[k] ~ dbern(0.5)
+    zINBRINF[k] ~ dbern(0.5)
+    zINBRSEX[k] ~ dbern(0.5)
+    zINBRINFSEX[k] ~ dbern(0.5)
+    
+  }  
+  
+  for (r in 1:nSG){
+    gammaSG[r] ~ dnorm(0, tau)
+  }
+  
+  tau <- pow(sigma, -2)
+  
+  sigma ~ dunif(0, 10)
+  a ~ dexp(1)
+  b ~ dexp(1)
+  c1 ~ dexp(1)
+  mean.p ~ dunif(0, 1)
+  
+  ## constraints for interaction terms
+  for (c in 1:3){
+  constraint_dataINFSEX[c] ~ dconstraint(zINFSEX[c] <= zINF[c] * zSEX[c])
+  constraint_dataINBRINF[c] ~ dconstraint(zINBRINF[c] <= zINBR[c] * zINF[c])
+  constraint_dataINBRSEX[c] ~ dconstraint(zINBRSEX[c] <= zINBR[c] * zSEX[c])
+  constraint_dataINBRINFSEX[c] ~ dconstraint(zINBRINFSEX[c] <= zINBR[c] * zINBRINF[c] * zINBRSEX[c])
+  
+  }
+  
+})
+
+```
+
+## set up constants and data
+```{r }
+consts <- list(nind = nind, tM = tM, sex = sex, infection = infection, inbr = as.numeric(CH$MLH), SG = as.numeric(CH$socg))
+
+data <- list(
+  y = y, cint = cint, censored = censored, tD = tD, dind = dind, constraint_dataINFSEX = rep(1, times = 3), 
+  constraint_dataINBRINF = rep(1, times = 3), constraint_dataINBRSEX = rep(1, times = 3), constraint_dataINBRINFSEX = rep(1, times = 3))
+
+```
+
+
+## find and define overdispersed initial values
+```{r }
+tinitFn <- function(cint, censored) {
+  apply(cbind(cint, censored), 1, function(x) {
+    if(x[3] == 2) {
+      y <- x[2] + rexp(1, 1)
+    } else {
+      y <- runif(1, x[1], x[2])
+    }
+    y
+  })
+}
+
+initFn <- function(cint, censored) {
+  ## get ML estimates as initial values
+  optFn <- function(pars, t) {
+    # browser()
+    if(any(pars[1:2] < 0)) {
+      return(NA)
+    }
+    ll <- sum(dGompzMake(t, a = pars[1], b = pars[2], c1 = pars[3], log = TRUE))  
+  }
+#  valid <- 0
+#  while(valid == 0) {
+    pars <- list(convergence = 1)
+    k <- 0
+    while(pars$convergence != 0 & k < 20) {
+      ## sample missing values
+      tD <- tinitFn(cint, censored)
+      pars <- optim(rexp(3, 10), optFn, t = tD, control = list(fnscale = -1))
+      k <- k + 1
+    }
+    if(k == 20) {
+      stop("Can't sample initial values")
+    }
+    pars <- pars$par
+    
+    ## output initial values
+    inits <- list(
+      tD = tD,
+      a = pars[1],
+      b = pars[2],
+      c1 = pars[3],
+      mean.p = runif(1, 0, 1),
+      betaSEX = rnorm(3, 0, 0.1),
+      betaINF = rnorm(3, 0, 0.1),
+      betaINBR  = rnorm(3, 0, 0.1),
+      gammaSG = rnorm(40, 0, 0.1),
+      sigma = runif(1, 0, 5),
+      betaINFSEX = rnorm(3, 0, 1),
+      betaINBRINF = rnorm(3, 0, 1),
+      betaINBRSEX = rnorm(3, 0, 1),
+      betaINBRINFSEX = rnorm(3, 0, 1),
+      zSEX = rep(0, times = 3),
+      zINF = rep(0, times = 3),
+      zINBR = rep(0, times = 3),
+      zINFSEX = rep(0, times = 3),
+      zINBRINF = rep(0, times = 3),
+      zINBRSEX = rep(0, times = 3),
+      zINBRINFSEX = rep(0, times = 3)
+    )
+    
+}
+```
+
+
+## build the model without initial values (will throw an initialisation warning)
+```{r }
+model <- nimbleModel(code, constants = consts, data = data, inits = initFn(cint, censored))
+```
+
+## compile the model
+```{r }
+cIndicatorModel <- compileNimble(model)
+```
+
+## configure MCMC - adjust custom samplers to improve mixing
+```{r }
+config <- configureMCMC(model)
+config$removeSamplers(c("a", "b", "c1"))
+config$addSampler(target = c("a", "b", "c1"), type = 'AF_slice')
+
+```
+
+## add reversible jump
+```{r }
+configureRJ(conf = config,   ## model configuration
+                  targetNodes = c("betaSEX", "betaINF", "betaINBR", "betaINFSEX", "betaINBRINF", "betaINBRSEX", "betaINBRINFSEX"),
+                  indicatorNodes = c("zSEX", "zINF", "zINBR", "zINFSEX", "zINBRINF", "zINBRSEX", "zINBRINFSEX"),
+                  control = list(mean = 0, scale = 1))
+```
+
+## add monitors
+```{r }
+config$addMonitors("betaSEX", "betaINF", "betaINBR", "betaINFSEX", "betaINBRINF", "betaINBRSEX", "betaINBRINFSEX")
+```
+
+## build the MCMC
+```{r }
+rIndicatorMCMC <- buildMCMC(config)
+```
+
+## compile
+```{r }
+cIndicatorMCMC <- compileNimble(rIndicatorMCMC, project = model)
+```
+
+## run
+```{r }
+system.time(run <- runMCMC(cIndicatorMCMC, 
+                           niter = 500000, 
+                           nburnin = 24000, 
+                           nchains = 2,
+                           progressBar = TRUE, 
+                           summary = TRUE, 
+                           samplesAsCodaMCMC = TRUE, 
+                           thin = 1))
+
+```
