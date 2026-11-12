@@ -24,3 +24,6 @@ data/*
 !outputs/
 outputs/*
 !outputs/.gitkeep
+
+# Historical archives
+archive/
