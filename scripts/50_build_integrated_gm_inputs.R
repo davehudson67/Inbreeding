@@ -194,6 +194,20 @@ write.csv(
 dead <- dead[order(dead$id, dead$capture_date), , drop = FALSE]
 dead_first <- dead[!duplicated(dead$id), , drop = FALSE]
 
+
+# Record the exact source record selected for each accepted death.
+# This is needed to distinguish genuine mortality concordance from
+# accidentally matching the historical total number of deaths.
+selected_deaths <- dead_first[, c(
+  "id", "capture_id", "capture_date", "moc", "is_pm",
+  "pm_cause", "cause_class", "resolved_episode_outcome"
+), drop = FALSE]
+write.csv(
+  selected_deaths,
+  file.path(out, "integrated_accepted_death_sources.csv"),
+  row.names = FALSE, na = ""
+)
+
 # Calendar evidence is a proxy for observation effort, NOT independently
 # recorded trap effort. Do not infer a noncapture in a quarter with no
 # qualifying trapping evidence anywhere in the study.
