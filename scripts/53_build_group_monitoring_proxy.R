@@ -55,7 +55,9 @@ e <- e[is_live & e$q >= 1L & e$q <= x$T, , drop=FALSE]
 activity <- unique(e[
   !is.na(e$sg), c("sg","q"), drop=FALSE
 ])
-activity_key <- paste(activity$sg, activity$q, sep="@@")
+sg_levels <- sort(unique(activity$sg))
+monitored <- matrix(FALSE,nrow=length(sg_levels),ncol=x$T)
+monitored[cbind(match(activity$sg,sg_levels),activity$q)] <- TRUE
 
 # Only overwrite the 0s currently inferred from global proxy.
 # Keep confirmed detections and explicitly missing occasions unchanged.
@@ -81,7 +83,8 @@ for(i in seq_len(x$N)) {
     k <- which(obs$q <= q)
     if (!length(k)) next
     sg <- obs$sg[max(k)]
-    active <- paste(sg,q,sep="@@") %in% activity_key
+    sg_idx <- match(sg,sg_levels)
+    active <- !is.na(sg_idx) && monitored[sg_idx,q]
     if(active && y_global[i,q] == 0L) y_group[i,q] <- 0L
   }
 }
