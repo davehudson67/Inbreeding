@@ -51,7 +51,7 @@ stopifnot(
 gm_cmr_single <- nimbleFunction(
   run=function(
     y=double(1), first=integer(0), death=integer(0),
-    birth=integer(0), infection=integer(0),
+    birth=integer(0), infection=double(0),
     hom=double(0), male=double(0),
     a=double(0), b=double(0), c1=double(0),
     bh=double(0), bs=double(0), bi=double(0),
@@ -133,6 +133,11 @@ gm_cmr_single <- nimbleFunction(
   }
 )
 
+# NIMBLE converts a row-slice of an integer constant matrix to
+# NimArr<double> in the compiled calculation graph. The support
+# array therefore has type double(1), and its scalar infection onset
+# passed to gm_cmr_single has type double(0). Values remain exact
+# whole-quarter indices (0, 1, 2, ...) and are never averaged.
 # Log-sum-exp over the *empirical* 500-draw infection posterior,
 # compressed to its unique onset quarters and exact frequencies.
 # This avoids 500 redundant repeats per individual.
@@ -140,7 +145,7 @@ gm_cmr_marginal <- nimbleFunction(
   run=function(
     y=double(1), first=integer(0), death=integer(0),
     birth=integer(0),
-    support=integer(1), weight=double(1), nsupport=integer(0),
+    support=double(1), weight=double(1), nsupport=integer(0),
     hom=double(0), male=double(0),
     a=double(0), b=double(0), c1=double(0),
     bh=double(0), bs=double(0), bi=double(0),
