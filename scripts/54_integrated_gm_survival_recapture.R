@@ -77,7 +77,7 @@ gm_cmr_single <- nimbleFunction(
 
       age <- (t-birth)*0.25
       infected <- 0.0
-      if(infection > 0L && t >= infection) infected <- 1.0
+      if(infection > 0L & t >= infection) infected <- 1.0
 
       # Hazard multiplicative effect at current age.
       ageSlope <- bha*hom + bia*infected
@@ -312,7 +312,15 @@ cat("Initial log probability:",logp,"\n")
 if(!is.finite(logp)) stop("Non-finite model log probability")
 
 cat("Compiling integrated forward likelihood...\n")
-cm <- compileNimble(model)
+cm <- tryCatch(
+  compileNimble(model),
+  error = function(e) {
+    message("\n=== NIMBLE C++ COMPILATION DIAGNOSTICS ===")
+    try(printErrors(), silent = TRUE)
+    stop("Integrated model compilation failed: ",
+         conditionMessage(e), call. = FALSE)
+  }
+)
 compiledLogp <- cm$calculate()
 cat("Compiled log probability:",compiledLogp,"\n")
 if(!is.finite(compiledLogp) ||
@@ -346,7 +354,15 @@ if(mode=="compile") {
     thin=thin
   )
   mcmc <- buildMCMC(cfg)
-  cmcmc <- compileNimble(mcmc,project=model)
+  cmcmc <- tryCatch(
+    compileNimble(mcmc, project=model),
+    error = function(e) {
+      message("\n=== NIMBLE MCMC COMPILATION DIAGNOSTICS ===")
+      try(printErrors(), silent = TRUE)
+      stop("MCMC compilation failed: ",
+           conditionMessage(e), call. = FALSE)
+    }
+  )
   set.seed(20261113+chain*1009L)
   samples <- runMCMC(
     cmcmc,niter=niter,nburnin=nburn,thin=thin,
