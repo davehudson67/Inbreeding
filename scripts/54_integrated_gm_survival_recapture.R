@@ -58,7 +58,7 @@ gm_cmr_single <- nimbleFunction(
     bhi=double(0), bha=double(0), bia=double(0),
     alphaP=double(0), ui=double(0),
     periodEff=double(1), seasonEff=double(1),
-    periodIndex=integer(1), seasonIndex=integer(1),
+    periodIndex=double(1), seasonIndex=double(1),
     rho=double(0)) {
     returnType(double(0))
     alive <- 1.0
@@ -70,7 +70,8 @@ gm_cmr_single <- nimbleFunction(
       # estimate recapture probability.
       if(t > first) {
         lp <- alphaP + ui +
-          periodEff[periodIndex[t]] + seasonEff[seasonIndex[t]]
+          periodEff[as.integer(periodIndex[t])] +
+          seasonEff[as.integer(seasonIndex[t])]
         p <- 1.0/(1.0+exp(-lp))
         if(y[t] == 1L) {
           alive <- alive*p
@@ -133,6 +134,9 @@ gm_cmr_single <- nimbleFunction(
   }
 )
 
+# Period/season calendar vectors are also propagated as double
+# through compiled constant-slice expressions. Both nested functions
+# accept them as double(1), with explicit integer indexing on access.
 # NIMBLE converts a row-slice of an integer constant matrix to
 # NimArr<double> in the compiled calculation graph. The support
 # array therefore has type double(1), and its scalar infection onset
@@ -152,7 +156,7 @@ gm_cmr_marginal <- nimbleFunction(
     bhi=double(0), bha=double(0), bia=double(0),
     alphaP=double(0), ui=double(0),
     periodEff=double(1), seasonEff=double(1),
-    periodIndex=integer(1), seasonIndex=integer(1),
+    periodIndex=double(1), seasonIndex=double(1),
     rho=double(0)) {
     returnType(double(0))
     maxll <- -1.0e12
