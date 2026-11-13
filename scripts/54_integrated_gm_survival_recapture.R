@@ -3,6 +3,7 @@
 #          uncertainty-marginalised time-varying infection.
 #
 # MODE=compile [default]: tiny compilation/mathematical gate only.
+# MODE=benchmark: compile full-data MCMC and time 2 real sweeps.
 # MODE=full: one substantive MCMC chain, after approving inputs.
 #
 # Survival is marginalised via a 2-state forward algorithm (alive,
@@ -20,7 +21,8 @@ stopifnot(requireNamespace("nimble", quietly=TRUE))
 suppressPackageStartupMessages(library(nimble))
 dir.create("outputs/integrated_gm",recursive=TRUE,showWarnings=FALSE)
 mode <- Sys.getenv("MODE", "compile")
-if(!mode %in% c("compile","full")) stop("MODE must be compile or full")
+if(!mode %in% c("compile","benchmark","full"))
+  stop("MODE must be compile, benchmark, or full")
 file <- Sys.getenv("MODEL_INPUT",
                    "data/model_inputs/integrated_gm_inputs_group_proxy_2026.rds")
 if(!file.exists(file)) stop("Missing model input: ", file)
@@ -218,10 +220,14 @@ if(mode=="compile") {
   cat("\nCOMPILE GATE PASSED.\n")
   cat("Not a fitted model. Simulation recovery still required.\n")
 } else {
-  # A full fit is opt-in only, never triggered by the audit.
-  niter <- as.integer(Sys.getenv("NITER","12000"))
-  nburn <- as.integer(Sys.getenv("NBURN","4000"))
-  thin <- as.integer(Sys.getenv("THIN","8"))
+  # Modes benchmark and full configure the SAME full-cohort MCMC.
+  # Benchmark performs only two complete sweeps, not posterior fitting.
+  niter <- if(mode == "benchmark") 2L else
+    as.integer(Sys.getenv("NITER","12000"))
+  nburn <- if(mode == "benchmark") 0L else
+    as.integer(Sys.getenv("NBURN","4000"))
+  thin <- if(mode == "benchmark") 1L else
+    as.integer(Sys.getenv("THIN","8"))
   chain <- as.integer(Sys.getenv("CHAIN_ID","1"))
   if(!is.finite(niter) || !is.finite(nburn) ||
      niter <= nburn) stop("Bad MCMC settings")
@@ -244,6 +250,31 @@ if(mode=="compile") {
     }
   )
   set.seed(20261113+chain*1009L)
+  if(mode == "benchmark") {
+    cat("\n=== FULL-DATA MCMC BENCHMARK ===\n")
+    cat("Individuals:", N, "monitored quarters:", x$T, "\n")
+    cat("Timing 2 sweeps of actual compiled MCMC.\n")
+    gc()
+    tm <- system.time(
+      test_samples <- runMCMC(
+        cmcmc,niter=2,nburnin=0,thin=1,
+        nchains=1,progressBar=FALSE,
+        samplesAsCodaMCMC=FALSE
+      )
+    )
+    seconds_per_sweep <- unname(tm[["elapsed"]]) / 2
+    projected_hours <- seconds_per_sweep * 12000 / 3600
+    cat("Elapsed seconds (2 sweeps):", tm[["elapsed"]], "\n")
+    cat("Seconds per sweep (rough):", seconds_per_sweep, "\n")
+    cat("Projected 12000-sweep hours per chain (rough):",
+        projected_hours, "\n")
+    saveRDS(list(n=N, seconds_per_sweep=seconds_per_sweep,
+                 projected_hours=projected_hours,
+                 input_md5=unname(tools::md5sum(file)),
+                 parameter_names=colnames(test_samples)),
+            "outputs/integrated_gm/full_cohort_benchmark.rds")
+    cat("BENCHMARK COMPLETE. Full posterior chains NOT started.\n")
+  } else {
   samples <- runMCMC(
     cmcmc,niter=niter,nburnin=nburn,thin=thin,
     nchains=1,progressBar=TRUE,
@@ -264,3 +295,4 @@ if(mode=="compile") {
   )
   cat("Saved full chain",chain,"\n")
 }
+  }
