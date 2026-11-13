@@ -225,6 +225,8 @@ if(any(abs(rowSums(weightAll)-1)>1e-12))
 cat("500 draws compressed to max",maxSupport,
     "distinct onset quarters; median",
     median(nSupportAll),"\n")
+cat("IMPORTANT: Infection-time uncertainty is marginalised per individual.\n")
+cat("Shared cross-individual posterior draw correlations are not yet included.\n")
 
 if(mode=="compile") {
   deadCandidates <- which(death > 0L)
