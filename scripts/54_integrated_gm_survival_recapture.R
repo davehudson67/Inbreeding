@@ -185,8 +185,23 @@ inits <- function() list(
 )
 
 cat("Defining model...\n")
+init_values <- inits()
+if(mode == "full") {
+  # Distinct starting states allow between-chain convergence checks.
+  chain_init <- as.integer(Sys.getenv("CHAIN_ID","1"))
+  if(is.na(chain_init) || chain_init < 1L)
+    stop("CHAIN_ID must be a positive integer")
+  set.seed(20261113 + 1009L*chain_init)
+  init_values$a <- runif(1,.055,.11)
+  init_values$b <- runif(1,.10,.22)
+  init_values$c1 <- runif(1,.008,.03)
+  init_values$alphaP <- runif(1,-2.2,-.8)
+  init_values$sigmaU <- runif(1,.3,.9)
+  init_values$rho <- runif(1,.25,.6)
+  init_values$ui <- rnorm(N,0,.2)
+}
 model <- nimbleModel(
-  code,constants=constants,data=data,inits=inits(),
+  code,constants=constants,data=data,inits=init_values,
   check=TRUE,calculate=FALSE
 )
 logp <- model$calculate()
@@ -282,8 +297,13 @@ if(mode=="compile") {
   )
   saveRDS(
     list(samples=samples,chain=chain,n=N,
+         niter=niter,nburn=nburn,thin=thin,
          input=file,
          input_md5=unname(tools::md5sum(file)),
+         code_md5=unname(tools::md5sum(
+           c("scripts/54_integrated_gm_survival_recapture.R",
+             "R/gm_cmr_forward_nimble.R"))),
+         nimble_version=as.character(packageVersion("nimble")),
          assumptions=c(
            "individual posterior infection marginals; joint draw correlation not included",
            "SG-specific monitoring proxy, not independent effort",
