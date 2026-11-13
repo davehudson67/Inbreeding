@@ -43,9 +43,14 @@ stopifnot(
 # h(age in years) = a exp(b*age)+c, multiplied by effects.
 # Exact within-quarter cumulative-hazard integration incorporates
 # within-quarter linear-age interactions.
+# NIMBLE promotes the y[i,1:T] constant row to NimArr<double> in
+# compiled model code, even when supplied as an integer R matrix.
+# Both the single-history and marginal-history nimbleFunction
+# signatures must therefore accept double(1) for y; observed
+# values still remain exactly -1, 0, 1.
 gm_cmr_single <- nimbleFunction(
   run=function(
-    y=integer(1), first=integer(0), death=integer(0),
+    y=double(1), first=integer(0), death=integer(0),
     birth=integer(0), infection=integer(0),
     hom=double(0), male=double(0),
     a=double(0), b=double(0), c1=double(0),
@@ -133,7 +138,7 @@ gm_cmr_single <- nimbleFunction(
 # This avoids 500 redundant repeats per individual.
 gm_cmr_marginal <- nimbleFunction(
   run=function(
-    y=integer(1), first=integer(0), death=integer(0),
+    y=double(1), first=integer(0), death=integer(0),
     birth=integer(0),
     support=integer(1), weight=double(1), nsupport=integer(0),
     hom=double(0), male=double(0),
