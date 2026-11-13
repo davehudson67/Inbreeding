@@ -17,12 +17,6 @@ normalise <- function(s) {
 }
 qidx <- function(d) {
   d <- as.Date(d)
-  (as.integer(format(d,"%Y")) - 1976L)*4L +
-    (as.integer(format(d,"%m"))-1L)%/%4L+1L
-}
-# Correct quarter calculation (do NOT modify):
-qidx <- function(d) {
-  d <- as.Date(d)
   (as.integer(format(d,"%Y"))-1976L)*4L +
     (as.integer(format(d,"%m"))-1L)%/%3L+1L
 }
