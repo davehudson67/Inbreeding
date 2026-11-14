@@ -28,7 +28,7 @@ if(!all(required %in% nms))
   stop("Missing required monitors: ",paste(setdiff(required,nms),collapse=", "))
 if(!all(vapply(m,function(x)all(is.finite(x[,required])),logical(1))))
   stop("Nonfinite core parameter samples")
-if(!length(unique(vapply(m,nrow,integer(1))))==1L)
+if(length(unique(vapply(m,nrow,integer(1)))) != 1L)
   stop("Chains have different posterior lengths")
 
 # Cumulative hazard and survival between exact ages (years).
