@@ -23,6 +23,8 @@ dir.create("outputs/integrated_gm/reparam",recursive=TRUE,showWarnings=FALSE)
 mode <- Sys.getenv("MODE", "compile")
 cat("Anchored-GM alternative: h4 annual hazard at age 4, f4 Makeham fraction at age 4.\n")
 cat("The likelihood family is unchanged; the new prior on baseline GM parameters is NOT identical.\n")
+cat("CAUTION: age interaction coefficients still act multiplicatively on BOTH GM components.\n")
+cat("Under these covariates, they represent age dependence of the total hazard, not solely the Gompertz term.\n")
 if(!mode %in% c("compile","benchmark","full"))
   stop("MODE must be compile, benchmark, or full")
 file <- Sys.getenv("MODEL_INPUT",
@@ -322,6 +324,8 @@ if(mode=="compile") {
            "SG-specific monitoring proxy, not independent effort",
            "last observed group carried forward, no movement submodel",
            "shared recovery probability rho; all-cause mortality",
+           "age interactions modify total hazard, not just Gompertz component",
+           "anchored h4/f4 priors replace old independent exponential priors on a/c1",
            "historical birth ages, first capture conditioned"
          )),
     sprintf("outputs/integrated_gm/reparam/full_chain_%02d.rds",chain)
