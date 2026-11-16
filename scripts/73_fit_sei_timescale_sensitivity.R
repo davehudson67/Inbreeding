@@ -194,9 +194,13 @@ fit_one <- function(draw,transition) {
     I_before_birth=dat$I_before_birth,
     E_before_landmark=dat$E_before_landmark,
     I_before_landmark=dat$I_before_landmark)
-  for(j in terms){
-    out[[paste0("beta_",j)]] <- unname(co[j])
-    out[[paste0("se_",j)]] <- sqrt(V[j,j])
+  # Keep an identical output schema for SE and EI, including
+  # explicitly missing age-at-exposure coefficients in SE.
+  for(j in c("hom_z","male","calendar_decade","age_exposure")){
+    out[[paste0("beta_",j)]] <-
+      if(j %in% terms) unname(co[j]) else NA_real_
+    out[[paste0("se_",j)]] <-
+      if(j %in% terms) sqrt(V[j,j]) else NA_real_
   }
   out
 }
@@ -216,8 +220,6 @@ for(k in seq_along(draw_ids)) {
   }
 }
 res <- do.call(rbind,rows)
-for(name in c("beta_age_exposure","se_age_exposure"))
-  if(!name %in% names(res))res[[name]] <- NA_real_
 res <- res[order(res$draw,res$transition),,drop=FALSE]
 if(nrow(res)!=2L*length(draw_ids)||
    anyDuplicated(res[,c("draw","transition")]))
