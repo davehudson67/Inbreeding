@@ -10,8 +10,9 @@
 #
 # One WHOLE coherent shared posterior draw is used at a time. Models
 # fitted per draw are exploratory CUT/MODULAR posterior imputations:
-# the SEI posterior was learned from diagnostic histories without
-# conditioning on genotype, sex or these survival-regression effects.
+# the SEI posterior came from a previously fitted disease model.
+# Its priors and covariate specification must be independently checked
+# before confirmatory inference or claims of novelty.
 # Consequently these pooled coefficients must NOT be described as a
 # fully joint posterior, causal effects or validated frequentist CIs.
 #
