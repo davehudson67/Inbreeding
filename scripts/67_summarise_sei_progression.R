@@ -80,8 +80,11 @@ cat("Deaths after SEI last capture:",sum(post_SEI_death),"\n")
 cat("Deaths within recorded SEI state window:",
     sum(known_death & !post_SEI_death),"\n")
 cat("Fraction of deaths beyond SEI state window:",
-    if(sum(known_death))round(mean(post_SEI_death[known_death]),3)
-    else NA_real_,"\n")
+    if(sum(known_death)>0L) {
+      round(mean(post_SEI_death[known_death]),3)
+    } else {
+      NA_real_
+    },"\n")
 cat("Do NOT treat zero onset as uninfected after last capture.\n")
 
 # Current SEI-state posterior probabilities at the disease end
