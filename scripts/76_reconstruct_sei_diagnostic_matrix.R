@@ -27,6 +27,25 @@ if(!all(vapply(needed,requireNamespace,logical(1),quietly=TRUE)))
 src <- "data/infection_posteriors/sei_2026"
 src_file <- file.path(src,"badgers.csv")
 stopifnot(file.exists(src_file))
+# Source is an extracted research bundle; verify that the inventory has
+# not changed since Stage 65 before linking a different database source.
+fingerprint_path <- file.path(src,"sei_extracted_files_sha256.tsv")
+if(!file.exists(fingerprint_path)||
+   !nzchar(Sys.which("sha256sum")))
+  stop("Stage 65 SHA256 manifest or sha256sum is unavailable")
+fingerprints <- utils::read.delim(fingerprint_path,stringsAsFactors=FALSE)
+if(!all(c("filename","sha256")%in%names(fingerprints))||
+   anyDuplicated(fingerprints$filename)||
+   !"badgers.csv"%in%fingerprints$filename)
+  stop("Original SEI fingerprint manifest is invalid")
+expected <- fingerprints$sha256[
+  match("badgers.csv",fingerprints$filename)]
+digest_line <- system2("sha256sum",shQuote(src_file),
+                       stdout=TRUE,stderr=FALSE)
+if(length(digest_line)!=1L||
+   !identical(strsplit(digest_line," ",fixed=TRUE)[[1]][1],
+              expected))
+  stop("SEI badgers.csv SHA256 mismatch: do not combine datasets")
 out <- "outputs/sei_transitions"
 dir.create(out,recursive=TRUE,showWarnings=FALSE)
 normal <- function(x) {
