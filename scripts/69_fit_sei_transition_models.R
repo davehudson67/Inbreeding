@@ -65,7 +65,7 @@ if(length(start)!=N||length(last)!=N||length(death)!=N||
    length(birth)!=N||length(male)!=N||length(rawhom)!=N||
    anyNA(start)||anyNA(last)||anyNA(death)||anyNA(birth)||
    anyNA(male)||anyNA(rawhom)||
-   any(start<1L)||any(start>last)||any(last>D*0L+200L)||
+   any(start<1L)||any(start>last)||any(last>z$T)||
    any(death<0L)||any(!x$sex %in% c("MALE","FEMALE"))||
    sd(rawhom)<=0)
   stop("Invalid SEI observation windows, birth times, sex or homozygosity")
@@ -113,7 +113,7 @@ cat("OUTCOMES are INFERRED disease trajectories, not directly",
 build_data <- function(draw, transition) {
   e <- as.integer(z$exposed_onset_q[,draw])
   i <- as.integer(z$infectious_onset_q[,draw])
-  if(anyNA(e)||anyNA(i)||any(e<0L)|any(i<0L)||
+  if(anyNA(e)||anyNA(i)||any(e<0L)||any(i<0L)||
      any(i>0L & (e==0L | i<e)) )
     stop("Invalid paired onset history in draw ",draw)
   # All event times limited to the person's observed window,
