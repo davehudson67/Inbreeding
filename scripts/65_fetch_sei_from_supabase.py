@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Stage 65: securely fetch the exact private Supabase SEI archive.
+"""Stage 65: find a local extracted SEI bundle or fetch the original ZIP.
 
 Archive location was verified in Supabase Storage on 2026-11-16.
 Provides three authentication methods, in order:
@@ -115,43 +115,93 @@ def download_cli(tmp):
     if not tmp.exists():
         raise RuntimeError("Supabase CLI exited without creating the archive")
 
+def find_extracted():
+    """Locate a single self-contained extracted SEI folder under sei_2026."""
+    candidates = sorted(
+        p.parent for p in OUT.parent.rglob("badgers.csv")
+        if p.is_file() and (p.parent / "trajectories_by_draw.csv").is_file()
+    )
+    # Avoid ambiguous version selection: never guess if two copies exist.
+    if len(candidates) > 1:
+        raise RuntimeError(
+            "Multiple extracted SEI folders found: "
+            + ", ".join(str(p) for p in candidates)
+            + ". Keep one source or provide the original ZIP."
+        )
+    return candidates[0] if candidates else None
+
+
 def main():
     OUT.parent.mkdir(parents=True, exist_ok=True)
+    extracted = None
     if OUT.exists():
         print("Using existing cached archive:", OUT)
         verify(OUT)
     else:
-        with tempfile.TemporaryDirectory(dir=str(OUT.parent)) as tempdir:
-            temp = Path(tempdir) / OBJECT
-            signed = os.environ.get("SEI_SIGNED_URL", "").strip()
-            token = os.environ.get("SEI_STORAGE_TOKEN", "").strip()
-            if signed:
-                print("Downloading private Storage object using time-limited URL")
-                download_http(temp, signed, None)
-            elif token:
-                print("Downloading private Storage object using authorized bearer token")
-                download_http(
-                    temp,
-                    f"https://{PROJECT}.supabase.co/storage/v1/object/"
-                    f"authenticated/{BUCKET}/{OBJECT}", token
-                )
-            else:
-                print("Downloading private Storage object via Supabase CLI")
-                download_cli(temp)
-            verify(temp)
-            os.replace(temp, OUT)
+        extracted = find_extracted()
+        if extracted is not None:
+            print("Found already-extracted SEI contents:", extracted)
+            required = ("badgers.csv", "trajectories_by_draw.csv")
+            for member in required:
+                path = extracted / member
+                if not path.is_file() or path.stat().st_size == 0:
+                    raise RuntimeError("Missing/empty extracted source: " + str(path))
+            print("Extracted essential tables: PRESENT")
+            print("Original ZIP not available: cannot verify the Supabase ZIP SHA256.")
+            print("Will fingerprint extracted files and validate rows, IDs, "
+                  "draws, and chronology in Stage 66.")
+        else:
+            with tempfile.TemporaryDirectory(dir=str(OUT.parent)) as tempdir:
+                temp = Path(tempdir) / OBJECT
+                signed = os.environ.get("SEI_SIGNED_URL", "").strip()
+                token = os.environ.get("SEI_STORAGE_TOKEN", "").strip()
+                if signed:
+                    print("Downloading private Storage object using time-limited URL")
+                    download_http(temp, signed, None)
+                elif token:
+                    print("Downloading private Storage object using authorized bearer token")
+                    download_http(
+                        temp,
+                        f"https://{PROJECT}.supabase.co/storage/v1/object/"
+                        f"authenticated/{BUCKET}/{OBJECT}", token
+                    )
+                else:
+                    print("Downloading private Storage object via Supabase CLI")
+                    download_cli(temp)
+                verify(temp)
+                os.replace(temp, OUT)
 
+    is_zip = OUT.is_file()
     meta = {
         "project": PROJECT, "bucket": BUCKET, "object": OBJECT,
-        "sha256": EXPECTED_SHA256, "bytes": EXPECTED_BYTES,
-        "local": str(OUT), "verified": True,
+        "source_mode": "original_zip" if is_zip else "extracted_files",
+        "sha256": EXPECTED_SHA256 if is_zip else None,
+        "bytes": EXPECTED_BYTES if is_zip else None,
+        "local": str(OUT) if is_zip else str(extracted),
+        "original_zip_checksum_verified": bool(is_zip),
+        "verified": bool(is_zip),
         "original_trajectories": 3214000, "draws": 1000,
         "note": "0 onset means not progressed by last capture, NOT never in future",
     }
+    if extracted is not None:
+        paths = [extracted / "badgers.csv",
+                 extracted / "trajectories_by_draw.csv"]
+        meta["extracted_files_sha256"] = {
+            p.name: digest(p) for p in paths
+        }
+        meta["extracted_files_bytes"] = {
+            p.name: p.stat().st_size for p in paths
+        }
+        checksums = OUT.parent / "sei_extracted_files_sha256.tsv"
+        with checksums.open("w",encoding="utf-8") as fh:
+            fh.write("filename\tsha256\n")
+            for p in paths:
+                fh.write(f"{p.name}\t{digest(p)}\n")
+        print("Wrote extracted-file SHA256 fingerprints:", checksums)
     manifest = OUT.parent / "sei_storage_source_verified.json"
     manifest.write_text(json.dumps(meta, indent=2) + "\n", encoding="utf-8")
-    print("Local verified source:", OUT)
-    print("Manifest:", manifest)
+    print("SEI source manifest:", manifest)
+    print("Archive SHA256 verified:", is_zip)
 
 if __name__ == "__main__":
     try:
