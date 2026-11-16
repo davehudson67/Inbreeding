@@ -62,31 +62,52 @@ Se <- as.numeric(f$sesp$Se)
 Sp <- as.numeric(f$sesp$Sp)
 if(anyNA(Se)||anyNA(Sp)||any(Se<=0|Se>=1)||
    any(Sp<=0|Sp>=1))fail("Original Se/Sp invalid")
-# Original SEI emission specification: P(positive|E)=m_k*Se_k.
-# Refuse to invent m_k. Parameter names can be e_mult[1] or e_mult.1.
-pars <- f$parameters
-if(!is.data.frame(pars)||
-   !all(c("parameter","mean")%in%names(pars)))
-  fail("Original SEI fit has no identifiable posterior means")
-names_raw <- as.character(pars$parameter)
-where <- which(grepl("^e_mult",names_raw))
-extract_n <- function(s)
-  suppressWarnings(as.integer(gsub("[^0-9]","",s)))
-# vapply() uses character X values as result names by default.
-# Comparing named sort(indices) to unnamed 1:6 with identical() would
-# reject an otherwise complete set of correctly indexed multipliers.
-indices <- vapply(names_raw[where],extract_n,integer(1),USE.NAMES=FALSE)
-if(length(where)!=6L||anyNA(indices)||
-   !identical(sort(indices),seq_len(6L))) {
-  cat("Discovered exposed-multiplier parameter labels:\n")
-  if(length(where)) print(names_raw[where]) else cat("  NONE\n")
-  cat("Parsed assay indices:",paste(indices,collapse=", "), "\n")
-  fail("Cannot uniquely identify all 6 exposed assay multipliers.")
+# Original SEI emission: P(positive | E, assay k) = m_k * Se_k.
+# The source has 4-chain posterior DRAWS (Stage75 diagnostics include
+# e_mult.4.). In this fit f$parameters does NOT expose the multiplier
+# rows, so calculate each m_k from the original draw columns instead.
+# Never use diagnostic Rhat/ESS as a multiplier, or guess a default.
+# Julia's e_mult[k] can become e_mult.k. after read.csv(check.names=TRUE).
+draws <- f$draws
+if(!is.data.frame(draws)||nrow(draws)<10L)
+  fail("Original SEI posterior draw table unavailable or too small")
+names_raw <- names(draws)
+where <- grep("^e_mult(\\[|\\.|$)",names_raw)
+extract_index <- function(label) {
+  # Exact accepted forms: e_mult[1], e_mult.1., e_mult.1
+  if(grepl("^e_mult\\[[1-6]\\]$",label))
+    return(as.integer(sub("^e_mult\\[([1-6])\\]$","\\1",label)))
+  if(grepl("^e_mult\\.[1-6]\\.?$",label))
+    return(as.integer(sub("^e_mult\\.([1-6])\\.?$","\\1",label)))
+  NA_integer_
 }
-m <- as.numeric(pars$mean[where][match(seq_len(6L),indices)])
-cat("Source exposed-state assay multipliers successfully mapped: ",
-    paste(names_raw[where][match(seq_len(6L),indices)],collapse=", "),
-    "\n",sep="")
+indices <- vapply(names_raw[where],extract_index,integer(1),
+                  USE.NAMES=FALSE)
+if(length(where)!=6L||anyNA(indices)||
+   !identical(sort(indices),1:6)){
+  cat("Source posterior draw columns matching e_mult: ",
+      paste(names_raw[where],collapse=", "),"\n",sep="")
+  cat("Last 16 posterior draw column names: ",
+      paste(tail(names_raw,16L),collapse=", "),"\n",sep="")
+  if(is.data.frame(f$parameters)&&"parameter"%in%names(f$parameters))
+    cat("Parameter-table e_mult labels: ",
+        paste(grep("mult",as.character(f$parameters$parameter),
+                   ignore.case=TRUE,value=TRUE),collapse=", "),"\n",sep="")
+  fail("Cannot map all 6 exposed assay multipliers from posterior draws.")
+}
+mapped <- where[match(1:6,indices)]
+if(!all(vapply(draws[mapped],is.numeric,logical(1))))
+  fail("Exposed multipliers are not numeric posterior columns")
+m <- vapply(draws[mapped],function(v) {
+  if(anyNA(v)||any(!is.finite(v))||any(v<0|v>1))
+    fail("SEI exposed multiplier posterior values outside [0,1]")
+  mean(v)
+},numeric(1),USE.NAMES=FALSE)
+cat("Source exposed-state multipliers recovered from ",
+    nrow(draws)," joint posterior draw rows:\n",sep="")
+print(data.frame(assay=seq_len(6L),
+                 source_column=names_raw[mapped],
+                 posterior_mean=signif(m,5L)),row.names=FALSE)
 if(anyNA(m)||any(m<=0|m>=1))
   fail("Original exposed-state m multipliers are nonfinite/boundary")
 positive <- rbind(1-Sp, m*Se, Se)
