@@ -28,6 +28,7 @@ for(j in seq_along(Z)) {
      !identical(other$N,first$N)||
      !identical(other$model_input_md5,first$model_input_md5)||
      !identical(other$sei_input_md5,first$sei_input_md5)||
+     !identical(other$fit_source_md5,first$fit_source_md5)||
      !identical(other$ids,first$ids)||
      !identical(other$assumptions,first$assumptions))
     stop("Different cohort, model definition, assumption set or input MD5 at shard ",j)
