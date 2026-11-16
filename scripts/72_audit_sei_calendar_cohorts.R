@@ -59,7 +59,20 @@ print(range_checks)
 capture_q <- rowSums(x$y==1L)
 cohort_summary <- do.call(rbind,lapply(bins,function(k){
   ix <- which(cohort==k)
-  stopifnot(length(ix)>0L)
+  if(length(ix)==0L) {
+    # Empty recruitment decades are valid and must remain visible;
+    # return NA for undefined demographic summaries, not a model error.
+    return(data.frame(
+      capture_cohort=labels[k],
+      n_badgers=0L,
+      median_age_first_capture=NA_real_,
+      median_SEI_followup_quarters=NA_real_,
+      mean_homozygosity=NA_real_,
+      male_fraction=NA_real_,
+      median_live_captures=NA_real_,
+      proportion_without_post_entry_followup=NA_real_
+    ))
+  }
   data.frame(
     capture_cohort=labels[k],
     n_badgers=length(ix),
@@ -68,9 +81,14 @@ cohort_summary <- do.call(rbind,lapply(bins,function(k){
     mean_homozygosity=mean(x$hom[ix]),
     male_fraction=mean(x$sex[ix]=="MALE"),
     median_live_captures=median(capture_q[ix]),
-    proportion_without_post_entry_followup=mean(landmark[ix]>end[ix]),
-    row.names=NULL)
+    proportion_without_post_entry_followup=mean(landmark[ix]>end[ix])
+  )
 }))
+stopifnot(sum(cohort_summary$n_badgers)==N)
+if(any(cohort_summary$n_badgers==0L))
+  cat("Decades with zero first captures:",
+      paste(cohort_summary$capture_cohort[
+        cohort_summary$n_badgers==0L],collapse=", "), "\n")
 cat("\nFirst-capture cohort composition:\n")
 print(cohort_summary,row.names=FALSE,digits=4)
 
@@ -131,7 +149,11 @@ write.csv(risk,file.path(out,"stage72_crude_rates_by_draw.csv"),
 write.csv(events,file.path(out,"stage72_event_calendar_by_draw.csv"),
           row.names=FALSE)
 q3 <- function(v){
-  if(!length(v)||anyNA(v)) return(rep(NA_real_,3))
+  # A zero-risk cohort cannot have a rate: retain NA for that decade.
+  # If only some posterior histories have risk time, report intervals
+  # over defined rates and separately count how many were defined.
+  v <- v[is.finite(v)]
+  if(!length(v)) return(rep(NA_real_,3))
   unname(quantile(v,c(.025,.5,.975)))
 }
 rates <- do.call(rbind,lapply(c("SE","EI"),function(t){
@@ -146,6 +168,7 @@ rates <- do.call(rbind,lapply(c("SE","EI"),function(t){
                median_risk_years=ps[2],
                median_crude_events_per_100_years=rr[2],
                rate_2.5pct=rr[1],rate_97.5pct=rr[3],
+               draws_with_nonzero_risk=sum(v$risk_years>0),
                row.names=NULL)
   }))
 }))
