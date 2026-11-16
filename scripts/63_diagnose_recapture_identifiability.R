@@ -10,7 +10,7 @@
 # ==============================================================
 options(stringsAsFactors=FALSE)
 stopifnot(requireNamespace("coda",quietly=TRUE))
-out <- "outputs/integrated_gm/reparam"
+out <- Sys.getenv("POSTERIOR_DIR","outputs/integrated_gm/reparam")
 ff <- file.path(out,sprintf("full_chain_%02d.rds",1:3))
 stopifnot(all(file.exists(ff)))
 x <- lapply(ff,readRDS)
