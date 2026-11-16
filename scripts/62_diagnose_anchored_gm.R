@@ -5,7 +5,7 @@
 # ==============================================================
 options(stringsAsFactors = FALSE)
 stopifnot(requireNamespace("coda", quietly = TRUE))
-out <- "outputs/integrated_gm/reparam"
+out <- Sys.getenv("POSTERIOR_DIR","outputs/integrated_gm/reparam")
 files <- file.path(out, sprintf("full_chain_%02d.rds",1:3))
 if(!all(file.exists(files))) {
   stop("Missing anchored chain output(s): ",
