@@ -247,6 +247,12 @@ if(!is.list(ref)||is.null(ref$fits$both$theta)||
    any(!is.finite(ref$fits$both$theta)) ||
    !identical(as.integer(ref$n_eligible),as.integer(length(eligible))))
   fail("Stage80 fit is missing or its genetic eligibility cohort differs")
+if(!identical(unname(as.character(ref$source_md5)),
+              unname(as.character(tools::md5sum(files)))))
+  fail("Stage80 model and Stage81 source-input checksums differ; stop")
+if(!isTRUE(all.equal(unname(ref$assay_parameters$exposed_multiplier),
+                     unname(m),tolerance=1e-10)))
+  fail("SEI exposed-state assay multipliers differ from Stage80")
 truth_alt <- as.numeric(ref$fits$both$theta)
 names(truth_alt) <- c("logit_SE","logit_EI","logit_entry_pi",
                       "logit_entry_rho","beta_hom_SE","beta_hom_EI")
@@ -268,10 +274,8 @@ for(k in seq_along(chosen)){
     v <- unlist(d[j,paste0("test",1:6)],use.names=FALSE)
     counts[ii,] <- counts[ii,]+as.integer(!is.na(v))
   }
-  if(!identical(as.integer(rowSums(counts)>0),
-                as.integer(rowSums(counts)>0)))
-    fail("Internal test mask consistency")
-  if(sum(counts)<1L || nrow(counts)!=obs[[k]]$nq)
+  if(anyNA(counts)||any(counts<0L)||sum(counts)<1L ||
+     nrow(counts)!=obs[[k]]$nq)
     fail("Per-animal assay schedule does not match Stage81 preparation")
   schedules[[k]] <- counts
 }
