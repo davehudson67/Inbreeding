@@ -2,10 +2,13 @@
 """Stage 65: find a local extracted SEI bundle or fetch the original ZIP.
 
 Archive location was verified in Supabase Storage on 2026-11-16.
-Provides three authentication methods, in order:
+Default is strictly local. Accepts the original verified ZIP or
+extracted badgers.csv and trajectories_by_draw.csv in the same folder.
+Missing local files trigger a directory listing, NOT a network attempt.
+Remote download is explicitly opt-in through one of:
   1. SEI_SIGNED_URL (temporary signed Storage object URL)
   2. SEI_STORAGE_TOKEN (JWT/authorized API credential, kept on server)
-  3. installed, authenticated Supabase CLI using --remote project-ref
+  3. SEI_FETCH_REMOTE=1 with authenticated Supabase CLI.
 
 No credentials, URLs containing tokens, or user data are printed.
 Never writes to Supabase, the raw archive, or the PostgreSQL database.
@@ -165,9 +168,32 @@ def main():
                         f"https://{PROJECT}.supabase.co/storage/v1/object/"
                         f"authenticated/{BUCKET}/{OBJECT}", token
                     )
-                else:
-                    print("Downloading private Storage object via Supabase CLI")
+                elif os.environ.get("SEI_FETCH_REMOTE", "").strip() == "1":
+                    print("Explicit remote download requested: using Supabase CLI")
                     download_cli(temp)
+                else:
+                    root = OUT.parent
+                    inventory = sorted(
+                        p for p in root.rglob("*") if p.is_file()
+                    ) if root.exists() else []
+                    print("Local SEI directory:", root.resolve())
+                    print("Current working directory:", Path.cwd())
+                    print("Files found within local SEI folder:", len(inventory))
+                    for candidate in inventory[:60]:
+                        print("  ", candidate.relative_to(root),
+                              "(", candidate.stat().st_size, "bytes)")
+                    if len(inventory) > 60:
+                        print("  ... more files omitted")
+                    raise RuntimeError(
+                        "LOCAL SEI FILES NOT RECOGNISED. Stage 65 needs "
+                        "badgers.csv and trajectories_by_draw.csv in the "
+                        "same directory anywhere under "
+                        "data/infection_posteriors/sei_2026/. "
+                        "Check filenames, the extraction folder, and "
+                        "uppercase/lowercase spelling on Linux. "
+                        "No Supabase access is needed for local files. "
+                        "Remote download is now opt-in only."
+                    )
                 verify(temp)
                 os.replace(temp, OUT)
 
