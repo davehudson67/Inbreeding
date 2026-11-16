@@ -16,11 +16,15 @@
 # Consequently these pooled coefficients must NOT be described as a
 # fully joint posterior, causal effects or validated frequentist CIs.
 #
-# Observation windows: enter S at SEI start; ignore prevalent E before
-# start; enter E at inferred onset; censor at SEI last capture and
-# before any death quarter to avoid assuming later disease states.
-# Transitions occurring in the death quarter are excluded (unknown order).
-# Same-quarter E and I is allowed as one-quarter E -> I duration.
+# Observation windows: enter the post-capture cohort at the LATER of the
+# SEI inference start and the first confirmed live capture. The legacy
+# birth quarter is used ONLY as the age origin, not a disease observation
+# start. Exclude pre-entry S->E cases; for E->I allow already-exposed
+# animals to join the E risk set only if still not infectious at entry.
+# End at last SEI capture or quarter BEFORE any known death. No extrapolated
+# post-last-capture state. Same-quarter E/I treated as one E quarter.
+# This is conditional post-first-capture inference, subject to selection
+# and diagnostic-history informative-censoring assumptions.
 #
 # MODE=pilot (25 spread-out draws) or MODE=full (all 1000).
 # SHARD_ID/N_SHARDS partition whole draw columns for independent jobs.
@@ -60,13 +64,17 @@ start <- as.integer(z$sei_start_q)
 last <- as.integer(z$sei_last_capture_q)
 death <- as.integer(z$death_q)
 birth <- as.integer(x$birth_q)
+first_live <- as.integer(x$first_q)
 male <- as.integer(x$sex=="MALE")
 rawhom <- as.numeric(x$hom)
 if(length(start)!=N||length(last)!=N||length(death)!=N||
-   length(birth)!=N||length(male)!=N||length(rawhom)!=N||
+   length(birth)!=N||length(first_live)!=N||
+   length(male)!=N||length(rawhom)!=N||
    anyNA(start)||anyNA(last)||anyNA(death)||anyNA(birth)||
-   anyNA(male)||anyNA(rawhom)||
+   anyNA(first_live)||anyNA(male)||anyNA(rawhom)||
    any(start<1L)||any(start>last)||any(last>z$T)||
+   any(first_live<1L)||any(first_live>last)||
+   any(first_live<birth)||
    any(death<0L)||any(!x$sex %in% c("MALE","FEMALE"))||
    sd(rawhom)<=0)
   stop("Invalid SEI observation windows, birth times, sex or homozygosity")
@@ -75,8 +83,11 @@ hom_z <- as.numeric((rawhom-mean(rawhom))/sd(rawhom))
 # occurs at its end, avoiding zero-duration same-quarter E->I events.
 # Person-time after a recorded death is never included.
 follow_end <- pmin(last,ifelse(death>0L,death-1L,last))
-if(any(start<birth))
-  stop("SEI history begins before birth for at least one individual; audit times")
+# The SEI inference window may begin before biological birth, e.g.,
+# from a fixed study-wide observation origin. Never count this time.
+# Entry in THIS analysis is left-truncated to first confirmed capture,
+# which also implies first_live >= birth (validated above).
+landmark <- pmax(start,first_live,birth)
 if(any(!is.finite(hom_z)))stop("Nonfinite homozygosity covariate")
 source_md5 <- unname(tools::md5sum(sourcefile))
 original_md5 <- unname(tools::md5sum(original))
@@ -104,8 +115,27 @@ cat("Draws in this job:",length(draw_ids),"; first:",
     head(draw_ids,5),"\n")
 cat("SEI source mode:",z$source_mode,"\n")
 cat("Survival input MD5:",original_md5,"\n")
+cat("SEI start before inferred birth:",sum(start<birth),"of",N,"\n")
+cat("SEI start before first live capture:",sum(start<first_live),"of",N,"\n")
+cat("Post-capture landmark later than available follow-up:",
+    sum(landmark>follow_end),"of",N,"\n")
+cat("Any live first capture after SEI last:",sum(first_live>last),"\n")
 cat("Death before/within SEI end (censor prior to death quarter):",
     sum(death>0L & death<=last),"\n")
+if(mode=="pilot") {
+  data_quality <- data.frame(
+    id=z$id,
+    birth_q=birth,sei_start_q=start,first_live_q=first_live,
+    sei_last_q=last,death_q=death,
+    landmark_q=landmark,follow_end_q=follow_end,
+    sei_start_pre_birth=start<birth,
+    sei_start_pre_first_capture=start<first_live,
+    has_post_capture_followup=landmark<=follow_end
+  )
+  write.csv(data_quality,
+            file.path(out,"pilot_window_reconciliation.csv"),
+            row.names=FALSE)
+}
 cat("Mean homozygosity:",mean(rawhom),"; SD:",sd(rawhom),
     "; unique values:",length(unique(rawhom)),"\n")
 cat("OUTCOMES are INFERRED disease trajectories, not directly",
@@ -120,17 +150,21 @@ build_data <- function(draw, transition) {
   # All event times limited to the person's observed window,
   # with the additional terminal death-quarter censoring applied.
   if(transition=="SE") {
-    # Individuals exposed before the start are left-prevalent and
-    # cannot be treated as susceptible incident cases.
-    eligible <- start<=follow_end & !(e>0L & e<start)
-    event <- e>0L & e>=start & e<=follow_end
-    entry <- start
+    # Pre-landmark exposures are prevalent and not counted as new
+    # infections in the post-first-capture S->E risk set.
+    eligible <- landmark<=follow_end & !(e>0L & e<landmark)
+    event <- eligible & e>0L & e>=landmark & e<=follow_end
+    entry <- landmark
     exit <- ifelse(event,e,follow_end)
   } else if(transition=="EI") {
-    # Incident E within follow-up only: no prevalent E histories.
-    eligible <- e>0L & e>=start & e<=follow_end
-    entry <- e
-    event <- eligible & i>0L & i>=e & i<=follow_end
+    # Exposed animals can enter after first confirmed capture.
+    # An E onset earlier than capture is left-prevalent E; retain only
+    # if progression to I has not already occurred by landmark.
+    eligible <- landmark<=follow_end &
+      e>0L & e<=follow_end &
+      (i==0L | i>=landmark)
+    entry <- pmax(e,landmark)
+    event <- eligible & i>0L & i>=entry & i<=follow_end
     exit <- ifelse(event,i,follow_end)
   } else stop("Unknown transition")
   keep <- which(eligible & exit>=entry)
@@ -203,8 +237,13 @@ for(j in seq_along(draw_ids)) {
   }
   if(j==1L || j%%25L==0L || j==length(draw_ids)) {
     lasttwo <- results[(idx-1L):idx]
+    e <- z$exposed_onset_q[,draw]
+    i <- z$infectious_onset_q[,draw]
     cat(sprintf("Finished %d / %d shared posterior draws; draw %d; ",
                 j,length(draw_ids),draw))
+    cat(sprintf("pre-first-capture onset E=%d, I=%d; ",
+                sum(e>0L & e<landmark),
+                sum(i>0L & i<landmark)))
     cat(sprintf("S->E events %d; E->I events %d; elapsed %.1f min\n",
                 lasttwo[[1]]$events,lasttwo[[2]]$events,
                 as.numeric(difftime(Sys.time(),start_time,units="mins"))))
@@ -264,13 +303,16 @@ saveRDS(list(
   ids=z$id,draw_ids=draw_ids,N=N,
   source_mode=z$source_mode,
   model_input_md5=original_md5,sei_input_md5=source_md5,
+  fit_source_md5=unname(tools::md5sum(
+    "scripts/69_fit_sei_transition_models.R")),
   assumptions=c(
     "1000 shared SEI posterior draw columns preserved across individuals",
     "modular cut analysis; SEI diagnostics are not refitted",
     "SEI history begins at individual start quarter and ends at last capture",
     "no assumption of disease state after last SEI capture",
-    "exclude incident infection prior to modelled SEI observation start",
-    "exclude exposure-to-infectiousness prevalent E at observation start",
+    "post-first-confirmed-capture left truncation via max(SEI start, first capture, birth)",
+    "pre-capture S->E onset is left-prevalent and excluded from acquisition",
+    "pre-capture E can enter progression if not infectious at entry",
     "stop risk at quarter before any known death",
     "quarterly event times treated as occurring at end of event quarter",
     "same-quarter E->I allowed as quarter-long at-risk period",
