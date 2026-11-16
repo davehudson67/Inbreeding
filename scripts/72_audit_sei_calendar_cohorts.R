@@ -69,7 +69,7 @@ cohort_summary <- do.call(rbind,lapply(bins,function(k){
     male_fraction=mean(x$sex[ix]=="MALE"),
     median_live_captures=median(capture_q[ix]),
     proportion_without_post_entry_followup=mean(landmark[ix]>end[ix]),
-    row.names=NULL))
+    row.names=NULL)
 }))
 cat("\nFirst-capture cohort composition:\n")
 print(cohort_summary,row.names=FALSE,digits=4)
