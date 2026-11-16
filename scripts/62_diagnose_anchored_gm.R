@@ -40,9 +40,15 @@ if(any(vapply(M,function(m)any(!is.finite(m)),logical(1))))
   stop("Nonfinite monitored posterior samples")
 required <- c("h4","f4","b","a","c1","h8",
               "bh","bha","bi","bia","bhi","bs","rho","sigmaU","alphaP")
-if(!all(required %in% colnames(M)))
+# M is a list of three matrices. Inspect columns of the FIRST
+# sample matrix, not colnames(M), which is NULL for a plain list.
+monitored_names <- colnames(M[[1]])
+cat("Available monitored parameters:",
+    paste(monitored_names,collapse=", "), "\n")
+missing <- setdiff(required,monitored_names)
+if(length(missing))
   stop("Missing expected monitored parameters: ",
-       paste(setdiff(required,colnames(M)),collapse=", "))
+       paste(missing,collapse=", "))
 
 # Remove deterministic reference-category columns before Rhat.
 vary <- vapply(seq_along(colnames(M[[1]])),function(j) {
