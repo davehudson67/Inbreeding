@@ -72,11 +72,21 @@ names_raw <- as.character(pars$parameter)
 where <- which(grepl("^e_mult",names_raw))
 extract_n <- function(s)
   suppressWarnings(as.integer(gsub("[^0-9]","",s)))
-indices <- vapply(names_raw[where],extract_n,integer(1))
+# vapply() uses character X values as result names by default.
+# Comparing named sort(indices) to unnamed 1:6 with identical() would
+# reject an otherwise complete set of correctly indexed multipliers.
+indices <- vapply(names_raw[where],extract_n,integer(1),USE.NAMES=FALSE)
 if(length(where)!=6L||anyNA(indices)||
-   !identical(sort(indices),1:6))
-  fail("Cannot identify all 6 exposed assay sensitivity multipliers.")
-m <- as.numeric(pars$mean[where][match(1:6,indices)])
+   !identical(sort(indices),seq_len(6L))) {
+  cat("Discovered exposed-multiplier parameter labels:\n")
+  if(length(where)) print(names_raw[where]) else cat("  NONE\n")
+  cat("Parsed assay indices:",paste(indices,collapse=", "), "\n")
+  fail("Cannot uniquely identify all 6 exposed assay multipliers.")
+}
+m <- as.numeric(pars$mean[where][match(seq_len(6L),indices)])
+cat("Source exposed-state assay multipliers successfully mapped: ",
+    paste(names_raw[where][match(seq_len(6L),indices)],collapse=", "),
+    "\n",sep="")
 if(anyNA(m)||any(m<=0|m>=1))
   fail("Original exposed-state m multipliers are nonfinite/boundary")
 positive <- rbind(1-Sp, m*Se, Se)
