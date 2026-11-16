@@ -305,10 +305,12 @@ simulate_one <- function(truth,seed) {
                         prob=c(1-pi,pi*(1-rho),pi*rho))
     for(q in seq_len(nq)) {
       if(q>1L) {
-        if(state==1L && runif(1L)<lam)
-          state <- 2L
-        else if(state==2L && runif(1L)<tau)
-          state <- 3L
+        # Only one biological transition is allowed within a quarter.
+        if(state==1L) {
+          if(runif(1L)<lam) state <- 2L
+        } else if(state==2L) {
+          if(runif(1L)<tau) state <- 3L
+        }
       }
       latent_counts[state] <- latent_counts[state]+1L
       for(a in 1:6) {
