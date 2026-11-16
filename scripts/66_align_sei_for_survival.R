@@ -21,21 +21,33 @@ input <- Sys.getenv("MODEL_INPUT",
  "data/model_inputs/integrated_gm_inputs_group_proxy_2026.rds")
 out <- "outputs/sei_survival"
 dir.create(out,recursive=TRUE,showWarnings=FALSE)
-if(!file.exists(archive) || !file.exists(source_manifest))
-  stop("Missing verified SEI bundle. First run scripts/65_fetch_sei_from_supabase.py")
+if(!file.exists(source_manifest))
+  stop("Missing SEI source manifest. First run scripts/65_fetch_sei_from_supabase.py")
 if(!file.exists(input))
   stop("Missing integrated survival inputs: ",input)
 x <- readRDS(input)
 stopifnot(x$N==length(x$id),x$T==200L,
           all(x$y %in% c(-1L,0L,1L)))
 expected_sha256 <- "65a1f1a7c84e2f9bfbbe149a3d92078cebd185e72281d7e5452cf0eadaaf9f98"
-if(file.info(archive)$size!=23662164)
-  stop("SEI ZIP has unexpected size: halt")
-hash <- tryCatch(system2("sha256sum",archive,stdout=TRUE,stderr=FALSE),
-                 error=function(e) character())
-if(length(hash)==1L &&
-   !identical(strsplit(hash," ",fixed=TRUE)[[1]][1],expected_sha256))
-  stop("SEI ZIP checksum changed after verification: halt")
+# Accept either a checksum-verified original ZIP or an explicitly
+# fingerprinted extracted source. Do NOT attribute the ZIP's SHA256
+# to extracted files when the original ZIP is unavailable.
+zip_verified <- file.exists(archive)
+sha256file <- function(filename) {
+  if(!nzchar(Sys.which("sha256sum")))
+    stop("sha256sum is required to audit SEI input files")
+  val <- system2("sha256sum",shQuote(filename),
+                 stdout=TRUE,stderr=FALSE)
+  if(length(val)!=1L)
+    stop("Failed to calculate SHA256 for ",filename)
+  strsplit(val," ",fixed=TRUE)[[1]][1]
+}
+if(zip_verified) {
+  if(file.info(archive)$size!=23662164)
+    stop("SEI ZIP has unexpected size: halt")
+  if(!identical(sha256file(archive),expected_sha256))
+    stop("SEI ZIP checksum changed after verification: halt")
+}
 
 norm <- function(z) toupper(trimws(as.character(z)))
 ids <- norm(x$id)
@@ -43,18 +55,55 @@ if(anyNA(ids) || anyDuplicated(ids))stop("Bad or duplicate survival IDs")
 cat("\n=== STAGE 66: SUPABASE SEI -> SURVIVAL AUDIT ===\n")
 cat("Survival IDs:",length(ids),"quarterly occasions:",x$T,"\n")
 cat("Supabase private source: research-model-outputs/SEI_only_research_bundle.zip\n")
-cat("Source SHA256:",expected_sha256,"\n")
+cat("Original ZIP SHA256 verified:",zip_verified,"\n")
+if(zip_verified)
+  cat("Original ZIP SHA256:",expected_sha256,"\n")
+else
+  cat("Original ZIP unavailable: verified extracted CSV fingerprints only.\n")
 cat("Input MD5:",unname(tools::md5sum(input)),"\n")
 
-# Unzip only required tables; do not unpack large fitted objects.
-exdir <- file.path(root,"extracted")
-dir.create(exdir,recursive=TRUE,showWarnings=FALSE)
+# In verified-ZIP mode, always freshly extract these two files from
+# the verified archive (never trust potentially stale extracted CSVs).
+# Otherwise locate the ONE uploaded directory containing both files.
 required <- c("badgers.csv","trajectories_by_draw.csv")
-missing_files <- required[!file.exists(file.path(exdir,required))]
-if(length(missing_files)){
-  cat("Extracting:",paste(missing_files,collapse=", "),"\n")
-  utils::unzip(archive,files=missing_files,exdir=exdir,overwrite=FALSE)
+if(zip_verified) {
+  exdir <- file.path(root,"extracted")
+  dir.create(exdir,recursive=TRUE,showWarnings=FALSE)
+  cat("Extracting verified source tables into:",exdir,"\n")
+  utils::unzip(archive,files=required,exdir=exdir,overwrite=TRUE)
+} else {
+  matches <- list.files(root,pattern="^badgers[.]csv$",
+                        recursive=TRUE,full.names=TRUE)
+  sources <- unique(dirname(matches[
+    file.exists(file.path(dirname(matches),"trajectories_by_draw.csv"))
+  ]))
+  if(length(sources)!=1L)
+    stop("Need exactly one folder containing badgers.csv AND ",
+         "trajectories_by_draw.csv. Found ",length(sources),
+         ". Resolve duplicate extracted copies.")
+  exdir <- sources[[1L]]
+  cat("Using already-extracted SEI tables from:",exdir,"\n")
+  manifest_fingerprints <- file.path(root,"sei_extracted_files_sha256.tsv")
+  if(!file.exists(manifest_fingerprints))
+    stop("Missing extracted input SHA256 manifest: rerun Stage 65")
+  fingerprint <- read.delim(manifest_fingerprints,
+                            stringsAsFactors=FALSE)
+  if(!all(c("filename","sha256") %in% names(fingerprint)) ||
+     anyDuplicated(fingerprint$filename) ||
+     !all(required %in% fingerprint$filename))
+    stop("Invalid extracted source fingerprint manifest")
+  for(nm in required) {
+    actual <- sha256file(file.path(exdir,nm))
+    expected <- fingerprint$sha256[match(nm,fingerprint$filename)]
+    if(!identical(actual,expected))
+      stop("Extracted file changed since Stage 65: ",nm)
+  }
+  cat("Extracted CSV SHA256 fingerprints: PASS\n")
 }
+if(!all(file.exists(file.path(exdir,required))))
+  stop("Missing essential SEI CSV table after source resolution")
+source_file_sha256 <- setNames(vapply(required,function(nm)
+  sha256file(file.path(exdir,nm)),character(1)),required)
 badgers <- data.table::fread(file.path(exdir,"badgers.csv"),
                             colClasses=list(character="tattoo"))
 traj <- data.table::fread(file.path(exdir,"trajectories_by_draw.csv"),
@@ -189,7 +238,12 @@ result <- list(
   sei_start_q=sei_start,sei_last_capture_q=sei_last,
   model_first_q=as.integer(x$first_q),
   model_last_live_q=live_last, death_q=death,
-  source_archive=archive,source_sha256=expected_sha256,
+  source_mode=if(zip_verified) "verified_original_zip" else "extracted_csvs",
+  original_zip_checksum_verified=zip_verified,
+  source_archive=if(zip_verified) archive else NA_character_,
+  source_sha256=if(zip_verified) expected_sha256 else NA_character_,
+  source_extracted_directory=exdir,
+  source_csv_sha256=source_file_sha256,
   survival_input=input,
   survival_input_md5=unname(tools::md5sum(input)),
   warnings=c(
@@ -199,7 +253,11 @@ result <- list(
     "1000 columns are coherent joint posterior draws across individuals",
     "SEI disease posterior does not itself estimate disease progress after last capture",
     "First capture is conditioned upon in the current survival model",
-    "No individual survival model has been fitted to these SEI histories"
+    "No individual survival model has been fitted to these SEI histories",
+    if(!zip_verified)
+      "Original Supabase ZIP checksum could not be verified; essential CSV files fingerprinted and schema/chronology audited"
+    else
+      "Original Supabase ZIP checksum verified"
   )
 )
 dir.create("data/model_inputs",recursive=TRUE,showWarnings=FALSE)
