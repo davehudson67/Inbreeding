@@ -6,6 +6,11 @@
 #         first-capture/entry decade. Age remains Cox baseline time.
 #   E->I: TIME SINCE EXPOSURE is the Cox time scale; actual calendar
 #         quarter is time-varying; age at exposure is an adjustment.
+# IMPORTANT: with age as baseline, calendar quarter at an age risk set
+# also contrasts BIRTH COHORTS. With exposure-duration baseline,
+# calendar quarter at a duration risk set also contrasts EXPOSURE
+# COHORTS. These fitted calendar coefficients are therefore NOT
+# independently identified estimates of secular calendar trends.
 #
 # Cohort: 1603 genotyped badgers, shared SEI posterior draw columns.
 # Left-truncate at first observed live capture, SEI history start, birth;
@@ -278,4 +283,7 @@ saveRDS(list(results=res,pooled=pooled,mode=mode,
              )),resfile)
 write.csv(res,csvfile,row.names=FALSE)
 cat("Saved:",resfile,"\nSaved:",csvfile,"\n")
+cat("Calendar HR interpretation: age-time-scale S->E contrasts birth",
+    "cohorts, while exposure-duration E->I contrasts exposure cohorts.",
+    "Do NOT interpret either HR as a pure secular calendar-period effect.\n")
 cat("STAGE 73 COMPLETE. This does not resolve diagnostic observation bias.\n")
