@@ -183,7 +183,7 @@ for(k in seq_along(chosen)){
 }
 cat("Pilot capture records:",total_captures,
     "; observed binary tests:",total_assays,"\n")
-cat("Median observed quarters:",median(vapply(obs,function(z)z$nq,
+cat("Median modelled quarters spanning first-to-last capture:",median(vapply(obs,function(z)z$nq,
      integer(1))),"\n")
 if(total_assays<100L)
   fail("Too few observed test outcomes for even a smoke test")
@@ -257,18 +257,18 @@ neglogpost <- function(theta) {
 # Both penalised objective and unpenalised diagnostic likelihood are saved.
 fit_nested <- function(label,active,initial,maxit=250L){
   stopifnot(length(initial)==6L,all(active%in%1:6))
-  θbase <- start
-  θbase[active] <- initial[active]
+  theta_base <- start
+  theta_base[active] <- initial[active]
   objective <- function(par){
-    θ <- θbase
-    θ[active] <- par
-    neglogpost(θ)
+    theta_full <- theta_base
+    theta_full[active] <- par
+    neglogpost(theta_full)
   }
   t0 <- proc.time()[["elapsed"]]
-  opt <- stats::optim(θbase[active],objective,method="L-BFGS-B",
+  opt <- stats::optim(theta_base[active],objective,method="L-BFGS-B",
            lower=lower[active],upper=upper[active],
            control=list(maxit=maxit,trace=0))
-  theta <- θbase
+  theta <- theta_base
   theta[active] <- opt$par
   elapsed <- proc.time()[["elapsed"]]-t0
   ll <- raw_loglik(theta)
@@ -284,7 +284,7 @@ fit_nested <- function(label,active,initial,maxit=250L){
 }
 
 cat("\n=== STAGE 80: ALL-ELIGIBLE NESTED LIKELIHOOD FITS ===\n")
-cat("Genotyped individuals fitted:",length(chosen),"\n")
+cat("Genotyped individuals fitted:",length(chosen),"of",length(eligible),"eligible.\n")
 cat("Initial logLik:",round(raw_loglik(start),3),"\n")
 cat("Fitting null, acquisition only, progression only, and full model.\n")
 cat("All nested comparisons use the same animals, tests and priors.\n")
