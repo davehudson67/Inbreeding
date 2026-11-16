@@ -56,10 +56,11 @@ cat("\n=== STAGE 66: SUPABASE SEI -> SURVIVAL AUDIT ===\n")
 cat("Survival IDs:",length(ids),"quarterly occasions:",x$T,"\n")
 cat("Supabase private source: research-model-outputs/SEI_only_research_bundle.zip\n")
 cat("Original ZIP SHA256 verified:",zip_verified,"\n")
-if(zip_verified)
+if(zip_verified) {
   cat("Original ZIP SHA256:",expected_sha256,"\n")
-else
-  cat("Original ZIP unavailable: verified extracted CSV fingerprints only.\n")
+} else {
+  cat("Original ZIP unavailable: checking extracted CSV fingerprints.\n")
+}
 cat("Input MD5:",unname(tools::md5sum(input)),"\n")
 
 # In verified-ZIP mode, always freshly extract these two files from
