@@ -84,6 +84,84 @@ make_transition <- function(phi,lambda,tau) {
     fail("Four-state transition rows are not stochastic")
   Tmat
 }
+# Dynamic biological hazard kernel used by the ONE joint model.
+# This is the implementation for age/sex/genotype/individual frailty, but
+# not an estimate of those effects. The correlated individual frailty
+# PRIOR and time-varying historical baseline will be fitted together with
+# all four-state transitions, after capture/death reconciliation.
+exprel <- function(z){
+  if(abs(z)<1e-6)
+    1+z/2+z*z/6+z*z*z/24
+  else
+    expm1(z)/z
+}
+gm_quarter_hazard <- function(age_years,log_a,log_b,log_c){
+  if(!is.finite(age_years)||age_years<0L)
+    fail("Mortality evaluated at negative/nonfinite age")
+  a <- exp(log_a)
+  b <- exp(log_b)
+  c <- exp(log_c)
+  H <- .25*(a*exp(b*age_years)*exprel(b*.25)+c)
+  if(!is.finite(H)||H<0)
+    fail("Nonfinite Gompertz-Makeham integrated hazard")
+  H
+}
+# theta convention: each transition coefficients named
+#   intercept, age4, male, hom
+# death coefficients: male,hom,E,I
+# frailty: named SE,EI,D persistent within an individual.
+# calendar: named SE,EI quarter-specific baseline log-odds offsets.
+make_covariate_transition <- function(
+    age_years,male,hom_z,frailty,calendar,theta) {
+  if(!is.list(theta)||!all(c("SE","EI","D","gm")%in%names(theta))||
+     !all(c("intercept","age4","male","hom")%in%names(theta$SE))||
+     !all(c("intercept","age4","male","hom")%in%names(theta$EI))||
+     !all(c("male","hom","E","I")%in%names(theta$D))||
+     !all(c("log_a","log_b","log_c")%in%names(theta$gm))||
+     !all(c("SE","EI","D")%in%names(frailty))||
+     !all(c("SE","EI")%in%names(calendar))||
+     !all(is.finite(c(age_years,male,hom_z,frailty,calendar)))||
+     !male%in%c(0L,1L)||age_years<0)
+    fail("Invalid covariate transition inputs")
+  age4 <- age_years/4
+  eta_SE <- theta$SE["intercept"]+
+       theta$SE["age4"]*age4+theta$SE["male"]*male+
+       theta$SE["hom"]*hom_z+frailty["SE"]+calendar["SE"]
+  eta_EI <- theta$EI["intercept"]+
+       theta$EI["age4"]*age4+theta$EI["male"]*male+
+       theta$EI["hom"]*hom_z+frailty["EI"]+calendar["EI"]
+  h <- gm_quarter_hazard(
+       age_years,theta$gm["log_a"],theta$gm["log_b"],
+       theta$gm["log_c"])
+  death_shift <- theta$D["male"]*male+
+       theta$D["hom"]*hom_z+frailty["D"]
+  modifiers <- c(0,theta$D["E"],theta$D["I"])
+  phi <- exp(-h*exp(death_shift+modifiers))
+  make_transition(phi,unname(plogis(eta_SE)),unname(plogis(eta_EI)))
+}
+# Fixed demonstration parameters; ONLY for unit tests, not fitted values.
+demo <- list(
+  SE=c(intercept=-4,age4=-.2,male=.3,hom=.35),
+  EI=c(intercept=-2,age4=.2,male=.1,hom=.45),
+  D=c(male=.1,hom=.1,E=.2,I=.6),
+  gm=c(log_a=log(.005),log_b=log(.15),log_c=log(.003)))
+zero_re <- c(SE=0,EI=0,D=0)
+zero_cal <- c(SE=0,EI=0)
+t0 <- make_covariate_transition(2,0,0,zero_re,zero_cal,demo)
+t1 <- make_covariate_transition(2,0,1,zero_re,zero_cal,demo)
+t2 <- make_covariate_transition(
+  2,0,0,c(SE=.7,EI=0,D=0),zero_cal,demo)
+t3 <- make_covariate_transition(
+  2,0,0,c(SE=0,EI=0,D=.7),zero_cal,demo)
+stopifnot(
+  all(abs(rowSums(t0)-1)<1e-12),
+  t1["S","E"]>t0["S","E"],
+  t2["S","E"]>t0["S","E"],
+  t3["S","D"]>t0["S","D"],
+  t1["E","I"]>t0["E","I"],
+  t0["I","D"]>t0["S","D"])
+cat("Age/sex/genotype/frailty dynamic transition kernel tests: PASS\n")
+
 # Forward pass conditional on a known alive first capture;
 # first occasion's detection probability cancels in conditional
 # likelihood, but its diagnostic likelihood remains.
@@ -383,7 +461,10 @@ for(j in seq_len(nrow(cand))){
   }
 }
 # No test in a quarter has log likelihood 0 under ALL disease states.
-if(any(diag_em[diag_test_count==0L]!=0))
+untested <- diag_test_count==0L
+if(any(diag_em[,,1L][untested]!=0) ||
+   any(diag_em[,,2L][untested]!=0) ||
+   any(diag_em[,,3L][untested]!=0))
   fail("Untested quarter inadvertently became a diagnostic observation")
 if(sum(diag_test_count)!=sum(!is.na(as.matrix(
   cand[,paste0("test",1:6),drop=FALSE]))))
@@ -424,7 +505,7 @@ cat("Quarter-clock discrepancies:",diff_quarters,"\n")
 cat("Important: y=0 uses a monitoring PROXY, not true individual effort.\n")
 
 private_input <- file.path(
-  outdir,"joint_PRIVATE_source_reconciled_PENDING.rds")
+  outdir,"joint_PRIVATE_UNRECONCILED_input.rds")
 if(file.exists(private_input) && Sys.getenv("OVERWRITE","0")!="1")
   fail("Private joint input already exists; audit the previous results",
        " before intentionally replacing with OVERWRITE=1")
