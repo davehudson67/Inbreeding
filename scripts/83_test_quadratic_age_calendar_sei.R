@@ -353,6 +353,38 @@ stopifnot(length(start)==npar,length(lower)==npar,
           length(upper)==npar,length(prior_mean)==npar,
           length(prior_sd)==npar,all(start>=lower),
           all(start<=upper))
+hmm_vary <- function(em,lam,tau,pi,rho) {
+  if(!is.matrix(em)||ncol(em)!=3L||nrow(em)!=length(lam)||
+     length(tau)!=length(lam))
+    fail("Stage83 emission/transition sizes differ")
+  a <- c(1-pi,pi*(1-rho),pi*rho)
+  LL <- 0
+  for(t in seq_len(nrow(em))) {
+    if(t>1L) {
+      l <- lam[t];u <- tau[t]
+      a <- c(a[1L]*(1-l),
+             a[1L]*l+a[2L]*(1-u),
+             a[2L]*u+a[3L])
+    }
+    offset <- max(em[t,])
+    a <- a*exp(em[t,]-offset)
+    zz <- sum(a)
+    if(!is.finite(zz)||zz<=0)
+      fail("Stage83 nonfinite HMM emission probability")
+    LL <- LL+log(zz)+offset
+    a <- a/zz
+  }
+  LL
+}
+# Reassure ourselves the time-varying recursion reduces to Stage80 when
+# all hazards are constant and there are no covariates.
+stopifnot(abs(hmm_vary(matrix(0,7,3),rep(.1,7),rep(.2,7),
+                       .07,.02))<1e-10)
+set.seed(82L)
+em_test <- matrix(runif(21,-3,0),7,3)
+stopifnot(abs(hmm_vary(em_test,rep(.1,7),rep(.2,7),.07,.02)-
+              hmm_forward(em_test,.1,.2,.07,.02))<1e-10)
+
 # Stage82 likelihood is reproduced if square terms are zero.
 logLik_theta <- function(theta) {
   LL <- 0
