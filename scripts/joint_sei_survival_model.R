@@ -34,10 +34,10 @@
 options(stringsAsFactors=FALSE)
 mode <- Sys.getenv("MODE","validate")
 if(!mode %in% c("validate","likelihood_check","compile",
-                  "hierarchical_compile","hierarchical_benchmark"))
+                  "hierarchical_compile","hierarchical_benchmark",
+                  "full"))
   stop("MODE must be validate, likelihood_check, compile,",
-       " hierarchical_compile or hierarchical_benchmark;",
-       " full posterior fitting is not yet enabled.")
+       " hierarchical_compile, hierarchical_benchmark or full.")
 fail <- function(...)stop(paste(...,collapse=""),call.=FALSE)
 normal <- function(z) {
   x <- toupper(trimws(as.character(z)))
@@ -374,7 +374,7 @@ cat("Emission assumption: condition on first live capture.\n")
 # The full hierarchical frailty prior and MCMC are not implemented yet.
 # --------------------------------------------------------------------------
 if(mode%in%c("likelihood_check","compile","hierarchical_compile",
-             "hierarchical_benchmark")){
+             "hierarchical_benchmark","full")){
   validated <- file.path(outdir,"joint_PRIVATE_UNRECONCILED_input.rds")
   if(!file.exists(validated))
     fail("Run MODE=validate once to construct the private input")
@@ -543,7 +543,8 @@ if(mode%in%c("likelihood_check","compile","hierarchical_compile",
         " smoothing and posterior sampling are still to implement.\n")
     cat("SINGLE JOINT MODEL COMPILED LIKELIHOOD GATE: PASS\n")
   }
-  if(mode%in%c("hierarchical_compile","hierarchical_benchmark")){
+  if(mode%in%c("hierarchical_compile","hierarchical_benchmark",
+               "full")){
     if(!requireNamespace("nimble",quietly=TRUE))
       fail("NIMBLE is required for the joint model hierarchy")
     suppressPackageStartupMessages(library(nimble))
@@ -553,9 +554,11 @@ if(mode%in%c("likelihood_check","compile","hierarchical_compile",
     # The SAME intended scientific model will be used at full N=1603.
     # Only the number of individuals used for this engineering check
     # changes. The scientific regression and prior structure do not.
-    sel <- chosen
+    sel <- if(mode=="full") seq_len(inp$N) else chosen
     n <- length(sel)
     TT <- as.integer(inp$T)
+    if(mode=="full" && n!=1603L)
+      fail("Full run must include all 1603 genotyped badgers")
     pid <- as.numeric((seq_len(TT)-1L)%/%20L+1L)
     sid <- as.numeric((seq_len(TT)-1L)%%4L+1L)
     yi <- as.integer((seq_len(TT)-1L)%/%20L+1L)
@@ -625,7 +628,8 @@ if(mode%in%c("likelihood_check","compile","hierarchical_compile",
       fail("Nonfinite initial Bayesian model log probability: ",
            lpR,"; inspect model initialization")
     cat("Interpreted joint posterior log density:",signif(lpR,9),"\n")
-    cat("Compiling full hierarchical model on pilot cohort...\n")
+    cat("Compiling hierarchical model for ",n,
+        " genotyped badgers...\n",sep="")
     cm <- tryCatch(
       compileNimble(model),
       error=function(e){
@@ -649,13 +653,49 @@ if(mode%in%c("likelihood_check","compile","hierarchical_compile",
        max(abs(llR-llC))>1e-7)
       fail("Compiled per-badger HMM likelihoods disagree with R")
     cat("Per-badger forward likelihoods matched for all",
-        n,"pilot individuals.\n")
-    save_path <- file.path(outdir,
-        paste0("joint_hierarchical_",mode,"_gate.rds"))
-    if(file.exists(save_path) &&
-       Sys.getenv("OVERWRITE","0")!="1")
-      fail("Previous hierarchical gate exists: ",save_path,
-           "; use OVERWRITE=1 only after reviewing old output")
+        n,"individuals.\n")
+    # Full runs are isolated by chain and immutable; never reuse
+    # or overwrite another chain's file or log.
+    chain <- suppressWarnings(as.integer(Sys.getenv("CHAIN_ID","1")))
+    if(is.na(chain)||chain<1L||chain>99L)
+      fail("CHAIN_ID must be an integer in 1..99")
+    if(mode=="full") {
+      run_dir <- file.path(outdir,"full_joint_20261117",
+                           sprintf("chain_%02d",chain))
+      dir.create(run_dir,recursive=TRUE,showWarnings=FALSE)
+      save_path <- file.path(run_dir,"posterior_samples.rds")
+      if(file.exists(save_path))
+        fail("Full posterior output already exists: ",save_path,
+             " (will never overwrite)")
+      if(file.exists(file.path(run_dir,"chain_started.rds")))
+        fail("This chain was previously launched: ",run_dir,
+             "; inspect it before restarting")
+      saveRDS(list(
+        chain=chain,n=n,
+        input_md5=tools::md5sum(validated),
+        source_md5=inp$source_md5,
+        model_md5=tools::md5sum(c(
+          "scripts/joint_sei_survival_model.R",
+          "R/joint_sei_survival_hierarchy_nimble.R",
+          "R/joint_sei_survival_forward_nimble.R")),
+        started=Sys.time(),status="started",
+        caveat=paste(
+          "Exploratory conditional mortality model:",
+          "selected deaths include possible management removals.",
+          "Do not interpret mortality estimates as natural mortality",
+          "without death-cause reconciliation")
+        ),file.path(run_dir,"chain_started.rds"))
+      cat("Full chain directory:",run_dir,"\n")
+      cat("WARNING: known deaths may include managed removals;",
+          " mortality inference is PROVISIONAL.\n")
+    } else {
+      save_path <- file.path(outdir,
+          paste0("joint_hierarchical_",mode,"_gate.rds"))
+      if(file.exists(save_path) &&
+         Sys.getenv("OVERWRITE","0")!="1")
+        fail("Previous hierarchical gate exists: ",save_path,
+             "; use OVERWRITE=1 only after reviewing old output")
+    }
     result <- list(
       mode=mode,n=n,total_cohort=inp$N,
       log_posterior_R=lpR,log_posterior_compiled=lpC,
@@ -667,19 +707,16 @@ if(mode%in%c("likelihood_check","compile","hierarchical_compile",
         "R/joint_sei_survival_forward_nimble.R")),
       note="Engineering gate only; pilot subset; not a fitted posterior")
 
-    if(mode=="hierarchical_benchmark"){
-      # Exactly the SAME hierarchy and likelihood, benchmark sampler
-      # costs on real records. Do not interpret as inference.
-      cat("Constructing full-model sampler schedule...\n")
-      sampler <- configureMCMC(
-        model,
-        monitors=c("betaSE","betaEI","betaD",
+    if(mode%in%c("hierarchical_benchmark","full")){
+      cat("Constructing single-model MCMC samplers...\n")
+      monitor <- c("betaSE","betaEI","betaD",
          "entryBeta","entryRho","h4","f4","bGM",
          "sigmaSE","sigmaEI","sigmaD","load21",
          "load31","load32","sigmaCapture",
          "sigmaYearSE","sigmaYearEI",
-         "yearSE","yearEI","alphaP","rho"),
-        thin=1)
+         "yearSE","yearEI","periodEff","seasonEff",
+         "alphaP","rho")
+      sampler <- configureMCMC(model,monitors=monitor,thin=1)
       mcmc <- buildMCMC(sampler)
       cmcmc <- tryCatch(
         compileNimble(mcmc,project=model),
@@ -687,20 +724,86 @@ if(mode%in%c("likelihood_check","compile","hierarchical_compile",
           try(printErrors(),silent=TRUE)
           fail("NIMBLE MCMC compilation failed: ",
                conditionMessage(e))})
-      set.seed(20261117L)
-      bench <- system.time(
-        draws <- runMCMC(cmcmc,niter=2L,nburnin=0L,
-            thin=1L,nchains=1L,progressBar=FALSE,
-            samplesAsCodaMCMC=FALSE))
-      result$seconds_for_2_sweeps <- unname(bench[["elapsed"]])
-      result$parameter_columns <- colnames(draws)
-      cat("Two trial MCMC sweeps (same model):",
-          result$seconds_for_2_sweeps,"seconds.\n")
-      cat("Benchmark is not an analysed posterior sample.\n")
+      # Distinct RNG streams by chain, with SAME intended model/prior.
+      seed <- as.integer(20261117L + chain*13007L)
+      set.seed(seed)
+      if(mode=="hierarchical_benchmark"){
+        bench <- system.time(
+          draws <- runMCMC(cmcmc,niter=2L,nburnin=0L,
+              thin=1L,nchains=1L,progressBar=FALSE,
+              samplesAsCodaMCMC=FALSE))
+        result$seconds_for_2_sweeps <- unname(bench[["elapsed"]])
+        result$parameter_columns <- colnames(draws)
+        cat("Two trial MCMC sweeps (same model):",
+            result$seconds_for_2_sweeps,"seconds.\n")
+        cat("Benchmark is not an analysed posterior sample.\n")
+      } else {
+        niter <- suppressWarnings(as.integer(
+          Sys.getenv("NITER","8000")))
+        nburn <- suppressWarnings(as.integer(
+          Sys.getenv("NBURN","3000")))
+        thin <- suppressWarnings(as.integer(
+          Sys.getenv("THIN","5")))
+        if(anyNA(c(niter,nburn,thin))||
+           niter<2000L||nburn<500L||nburn>=niter||
+           thin<1L||((niter-nburn)%/%thin)<100L)
+          fail("Invalid full MCMC length/burnin/thinning")
+        cat("\n=== FULL COHORT SINGLE JOINT MODEL MCMC ===\n")
+        cat("N =",n,"; chain =",chain,"; seed =",seed,
+            "; iterations =",niter,"; burnin =",nburn,
+            "; thin =",thin,"\n")
+        cat("Monitor:",paste(monitor,collapse=", "),"\n")
+        cat("Progress follows NIMBLE iteration reporting.\n")
+        flush.console()
+        t0 <- Sys.time()
+        posterior <- runMCMC(
+          cmcmc,niter=niter,nburnin=nburn,thin=thin,
+          nchains=1,progressBar=TRUE,
+          samplesAsCodaMCMC=FALSE)
+        wall <- as.numeric(difftime(Sys.time(),t0,units="secs"))
+        if(!is.matrix(posterior) ||nrow(posterior)<100L||
+           any(!is.finite(posterior)))
+          fail("Posterior samples absent or nonfinite")
+        result <- list(
+          chain=chain,seed=seed,
+          N=n,iterations=niter,burnin=nburn,thin=thin,
+          saved_draws=nrow(posterior),
+          elapsed_sampling_seconds=wall,
+          model_parameters=colnames(posterior),
+          samples=posterior,
+          source_md5=inp$source_md5,
+          input_md5=tools::md5sum(validated),
+          model_code_md5=tools::md5sum(c(
+            "scripts/joint_sei_survival_model.R",
+            "R/joint_sei_survival_hierarchy_nimble.R",
+            "R/joint_sei_survival_forward_nimble.R")),
+          status="UNVALIDATED_PROVISIONAL",
+          mortality_caveat=paste(
+            "Natural vs intentional deaths unresolved;",
+            "capture effort is a proxy, fixed assay accuracy.")
+        )
+        # Protect completed result: no overwrites.
+        if(file.exists(save_path))
+          fail("Posterior file unexpectedly exists; refusing overwrite")
+        saveRDS(result,save_path,compress="xz")
+        done_path <- file.path(run_dir,"chain_finished.txt")
+        writeLines(c(
+          paste("chain",chain),paste("N",n),
+          paste("niter",niter),paste("burnin",nburn),
+          paste("thin",thin),paste("draws",nrow(posterior)),
+          paste("sampling_seconds",signif(wall,6)),
+          paste("status","UNVALIDATED_PROVISIONAL")),
+          done_path)
+        cat("Saved complete chain posterior:",save_path,"\n")
+        cat("Saved chain completion marker:",done_path,"\n")
+        cat("FULL JOINT MODEL MCMC CHAIN COMPLETED (PROVISIONAL).\n")
+      }
     }
-    saveRDS(result,save_path)
-    cat("Saved:",save_path,"\n")
-    cat("SINGLE JOINT HIERARCHICAL MODEL COMPILATION GATE: PASS\n")
+    if(mode!="full"){
+      saveRDS(result,save_path)
+      cat("Saved:",save_path,"\n")
+      cat("SINGLE JOINT HIERARCHICAL MODEL COMPILATION GATE: PASS\n")
+    }
   }
   quit(save="no",status=0L)
 }
