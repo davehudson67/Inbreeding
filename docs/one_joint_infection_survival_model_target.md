@@ -4,12 +4,15 @@
 
 ## Scientific estimands
 
-Estimate the separate associations of standardized multilocus homozygosity with (i) susceptible-to-exposed infection acquisition, (ii) exposed-to-infectious progression, and (iii) mortality, while allowing the current infection state to affect mortality. A claim of mediation or causality would require additional assumptions beyond this observational association model.
+Estimate the separate associations of standardized multilocus homozygosity with (i) susceptible-to-exposed infection acquisition, (ii) exposed-to-infectious progression, and (iii) mortality, while allowing the current infection state to affect mortality **and repeated badger observations to have persistent individual-level frailty**. A claim of mediation or causality would require additional assumptions beyond this observational association model.
 
 ## Target joint model
 
 - **Latent quarterly states:** S (susceptible), E (exposed), I (infectious), D (dead, absorbing). Transitions S→E, E→I, and S/E/I→D. No forced observed disease state after the last test.
-- **Genetic, sex and age covariates:** both infection transitions and mortality; standardize homozygosity once in the original genotyped cohort.
+- **Genetic, sex and age effects are mandatory in ALL THREE biological processes:** fit separate coefficients for homozygosity and sex in S→E acquisition, E→I progression, and mortality. Use each individual's age **at the current quarter** (not only at entry), calculated from its recorded/inferred birth quarter. The mortality age baseline is Gompertz–Makeham; acquisition and progression use an explicitly regularized, reasonably flexible age function. Standardize homozygosity once in the original genotyped cohort. Do not simply include sex/age as predictors of initial infection status.
+- **Individual badger heterogeneity is mandatory:** include persistent individual-level, mean-zero, partially pooled random intercepts (frailties) for **acquisition, progression, and mortality**: `b_SE[i], b_EI[i], b_D[i]`. Use a joint hierarchical multivariate normal prior with an estimable, regularized covariance matrix (non-centred parameterization; weakly informative scale priors and a shrinkage prior on correlations). This allows the same badger to have consistently higher/lower risks than another badger of the same sex, age and homozygosity, and permits shared underlying susceptibility/vulnerability. Random effects represent **residual heterogeneity**, not genetically driven differences; avoid re-centering or absorbing the fixed homozygosity effect.
+- **Individual detection heterogeneity:** model repeated-capture propensity separately from biological frailties, if the observed capture histories support its estimation. A persistent individual detection random intercept with shrinkage is the planned starting point. Do not interpret low capture as low survival, and do not silently introduce perfect detection.
+- **Identifiability:** the variance and correlations of the biological random effects, especially progression frailty, may be weakly informed by observed diagnostic histories. Assess recovery/mixing of the variance components in simulations of this ONE joint model; report prior sensitivity and uncertainty transparently if some components cannot be identified. Do not automatically replace the random-effects model with a series of unrelated fixed-effects models.
 - **Historical infection pressure:** one regularized, smoothly varying calendar baseline from the outset. Avoid a sequence of linear/quadratic/period scientific models. Age effects can be flexible where warranted, but one fixed primary specification must be selected before seeing new genetic results.
 - **Mortality:** Gompertz–Makeham age-dependent baseline; add sex, homozygosity and current infection-state effects. Model survival jointly with disease, not by assigning each animal a fixed inferred lifetime infection status.
 - **Entry:** explicitly model S/E/I probabilities at first confirmed live capture, including age, sex, calendar year and homozygosity, with left truncation. Acknowledge survivorship/genotyping selection.
@@ -21,9 +24,9 @@ Estimate the separate associations of standardized multilocus homozygosity with 
 
 ## One implementation, not many models
 
-The next code deliverable should be one **compiled four-state forward likelihood** and its input-preparation pipeline. It must integrate over the unobserved disease/death states and observed capture/diagnostic process. Validate transition ordering against small enumerated synthetic histories, then recover known parameters in simulations generated from **the same full joint model**. Pilot runs and alternate starts test implementation, not new biological model specifications.
+The next code deliverable should be one **compiled four-state forward likelihood conditional on individual frailties, coupled with hierarchical inference that integrates/samples those frailties** and its input-preparation pipeline. It must integrate over the unobserved disease/death states and observed capture/diagnostic process. Validate transition ordering against small enumerated synthetic histories, then recover known parameters in simulations generated from **the same full joint model**. Pilot runs and alternate starts test implementation, not new biological model specifications.
 
-Before fitting, check that genetic IDs, q indices, death times, first-capture entry and detection codes agree across the private existing inputs. Do not silently overwrite or repair records. Next fit the one model on the complete qualifying cohort, quantify parameter uncertainty and posterior/predictive fit to diagnostic tests, recaptures and deaths.
+Before fitting, check that genetic IDs, q indices, death times, first-capture entry and detection codes agree across the private existing inputs. Do not silently overwrite or repair records. Next fit the one model on the complete qualifying cohort, quantify parameter uncertainty (including individual random-effect standard deviations and correlations) and posterior/predictive fit to diagnostic tests, recaptures and deaths.
 
 ## Existing local source inputs
 
@@ -33,4 +36,4 @@ Before fitting, check that genetic IDs, q indices, death times, first-capture en
 - data/infection_posteriors/sei_2026/fits/sei_inferred_accuracy_.rds — original six assay characteristics and exposed-state multipliers.
 - Stage 80/82/83 output — exploratory reference points, not proof of validity for joint survival.
 
-**Definition of success:** one identified and computationally validated joint model providing genetic effect estimates and credible uncertainty for infection acquisition, progression and mortality, without extrapolating prior disease trajectories as observed truth.
+**Definition of success:** one identified and computationally validated joint model providing age-, sex-, and individual-heterogeneity-adjusted genetic effect estimates and credible uncertainty for infection acquisition, progression and mortality, without extrapolating prior disease trajectories as observed truth.
