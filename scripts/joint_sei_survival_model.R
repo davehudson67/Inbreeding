@@ -476,6 +476,12 @@ if(mode%in%c("likelihood_check","compile")){
     sea <- rep(0,4L)
     period_index <- as.numeric((seq_len(inp$T)-1L)%/%20L+1L)
     season_index <- as.numeric((seq_len(inp$T)-1L)%%4L+1L)
+    # This is a simple nimbleFunction without setup(). Both compiled
+    # and interpreted objects are directly callable R functions,
+    # not reference-class objects exposing $run.
+    # See NIMBLE manual Chapter 12 (simple nimbleFunctions).
+    if(!is.function(compiled)||!is.function(joint_sei_survival_ll))
+      fail("NIMBLE simple function interface is unexpectedly non-callable")
     delta <- numeric(length(chosen))
     for(j in seq_along(chosen)){
       i <- chosen[j]
@@ -497,12 +503,12 @@ if(mode%in%c("likelihood_check","compile")){
         alphaP=alpha,periodEff=per,seasonEff=sea,
         periodIndex=period_index,seasonIndex=season_index,
         rho=rho_recovery)
-      lc <- tryCatch(do.call(compiled$run,args),
+      lc <- tryCatch(do.call(compiled,args),
         error=function(e)
           fail("Compiled function invocation failed: ",
                conditionMessage(e)))
       # Exact same inputs in the interpreted nimbleFunction.
-      lr <- do.call(joint_sei_survival_ll$run,args)
+      lr <- do.call(joint_sei_survival_ll,args)
       # Compare pure R reference likelihood (all 4 Markov states).
       tr <- array(0,c(4L,4L,length(qs)))
       for(t in seq_along(qs))
