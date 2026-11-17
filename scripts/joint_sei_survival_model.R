@@ -205,6 +205,130 @@ forward_basic <- function(Tmat,obs,p,logem,entry) {
   LL
 }
 
+# --------------------------------------------------------------------------
+# Reference joint disease + death-recovery likelihood.
+#
+# Within each quarter q:
+#   1. Latent state at START of q is alive S/E/I or already dead D.
+#   2. Observe live capture / no capture and any diagnostic assays.
+#   3. Transition across q to the start of q+1 using state-specific
+#      survival, S->E or E->I.
+#   4. A recovered death reported IN quarter q is emitted ONLY on
+#      the live->D transition, with recovery probability rho.
+#
+# Thus a live capture and an observed death in the SAME quarter is
+# ALLOWED and has positive likelihood: captured before dying.
+# The source builder held any recorded death with LATER live capture
+# dates; same-date/within-quarter exact sequencing remains audited.
+#
+# With no reported death, live->D transitions are downweighted
+# by (1-rho); already-dead D->D has no extra recovery factor.
+# An unreported death can still occur, making later captures impossible.
+#
+# This is a pure-R REFERENCE IMPLEMENTATION for testing the eventual
+# compiled hierarchical joint likelihood. It is NOT a fitted model.
+# --------------------------------------------------------------------------
+forward_joint_reference <- function(transitions,y,dead,p,logem,entry,rho) {
+  K <- length(y)
+  if(K<1L||!is.array(transitions)||
+     !identical(dim(transitions),c(4L,4L,as.integer(K)))||
+     length(dead)!=K||length(p)!=K||
+     !is.matrix(logem)||!identical(dim(logem),c(K,3L))||
+     length(entry)!=3L||
+     any(!y%in%c(-1L,0L,1L))||
+     any(!dead%in%c(0L,1L))||
+     any(!is.finite(p)|p<0|p>1)||
+     any(!is.finite(logem))||
+     any(!is.finite(entry)|entry<0)||
+     abs(sum(entry)-1)>1e-10||
+     length(rho)!=1L||!is.finite(rho)||rho<0||rho>1||
+     y[1L]!=1L||sum(dead)>1L)
+    fail("Invalid source contract for joint reference HMM")
+  if(sum(dead)==1L){
+    dq <- which(dead==1L)
+    if(dq<K && any(y[seq.int(dq+1L,K)]==1L))
+      fail("Observed live capture later than reported death")
+  }
+  a <- c(entry,0)
+  logL <- 0
+  for(t in seq_len(K)) {
+    if(t==1L||y[t]==1L) {
+      # First capture conditioned on, not multiplied by p[1].
+      off <- max(logem[t,])
+      live_em <- exp(logem[t,]-off)
+      if(t!=1L)live_em <- live_em*p[t]
+      obs_em <- c(live_em,0)
+    } else {
+      off <- 0
+      if(y[t]==0L)
+        obs_em <- c(rep(1-p[t],3L),1)
+      else
+        obs_em <- rep(1,4L)
+    }
+    a <- a*obs_em
+    scale <- sum(a)
+    if(!is.finite(scale)||scale<=0)
+      return(-Inf)
+    logL <- logL+log(scale)+off
+    a <- a/scale
+    M <- transitions[,,t]
+    if(!all(is.finite(M))||any(M<0)||
+       any(abs(rowSums(M)-1)>1e-8))
+      fail("Invalid transition probability row in joint reference")
+    if(dead[t]==1L){
+      # Crucially this may happen in a captured-alive quarter.
+      b <- c(0,0,0,rho*sum(a[1:3]*M[1:3,4L]))
+    } else {
+      b <- drop(a %*% M)
+      # Subtract recovered live->death events that were not recorded.
+      b[4L] <- b[4L]-
+          rho*sum(a[1:3]*M[1:3,4L])
+    }
+    b[abs(b)<1e-14] <- 0
+    if(any(b<0))
+      fail("Negative transition probability after death report")
+    scale <- sum(b)
+    if(!is.finite(scale)||scale<=0)
+      return(-Inf)
+    logL <- logL+log(scale)
+    a <- b/scale
+  }
+  logL
+}
+# Explicit independent synthetic tests for the 79 observed
+# same-quarter live-capture and death cases.
+make_reference_sequence <- function(M,K)
+  array(rep(unname(M),K),dim=c(4L,4L,as.integer(K)))
+unitM <- make_transition(c(.9,.9,.9),.3,.2)
+unit1 <- make_reference_sequence(unitM,1L)
+unit2 <- make_reference_sequence(unitM,2L)
+unit3 <- make_reference_sequence(unitM,3L)
+# First quarter: conditioned-on capture, then death observed.
+# P(death in quarter and recovered) = 0.1*0.8.
+test_same_q <- forward_joint_reference(
+  unit1,1L,1L,.5,matrix(0,1,3),c(1,0,0),.8)
+stopifnot(is.finite(test_same_q),
+          abs(exp(test_same_q)-.08)<1e-12)
+# Q1 survives, Q2 captured alive (p=.5), dies and is recovered.
+test_later_q <- forward_joint_reference(
+  unit2,c(1L,1L),c(0L,1L),c(.5,.5),
+  matrix(0,2,3),c(1,0,0),.8)
+stopifnot(is.finite(test_later_q),
+          abs(exp(test_later_q)-(.9*.5*.1*.8))<1e-12)
+# With no death recovery possible (rho=0), and future unmonitored
+# intervals, everything after the conditioned first observation
+# marginalizes to probability one.
+test_unmon <- forward_joint_reference(
+  unit3,c(1L,-1L,-1L),rep(0L,3L),
+  rep(.5,3L),matrix(0,3,3),c(1,0,0),0)
+stopifnot(abs(test_unmon)<1e-12)
+# Death in q1 makes a q2 live capture impossible.
+test_impossible <- forward_joint_reference(
+  unit2,c(1L,1L),c(1L,0L),rep(.5,2L),
+  matrix(0,2,3),c(1,0,0),.8)
+stopifnot(identical(test_impossible,-Inf))
+cat("Joint observation/death recovery reference HMM unit tests: PASS\n")
+
 # Unit tests deliberately independent of research data.
 tm <- make_transition(c(.9,.9,.9),.3,.2)
 stopifnot(
