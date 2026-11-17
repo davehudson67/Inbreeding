@@ -248,7 +248,10 @@ forward_joint_reference <- function(transitions,y,dead,p,logem,entry,rho) {
   if(sum(dead)==1L){
     dq <- which(dead==1L)
     if(dq<K && any(y[seq.int(dq+1L,K)]==1L))
-      fail("Observed live capture later than reported death")
+      # This test sequence is IMPOSSIBLE under the disease/death model,
+      # not a malformed input to the likelihood. Return log(0) rather
+      # than throwing, so the impossibility unit test can succeed.
+      return(-Inf)
   }
   a <- c(entry,0)
   logL <- 0
