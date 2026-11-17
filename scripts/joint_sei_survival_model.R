@@ -8,7 +8,7 @@
 # THIS FILE IS THE SINGLE FUTURE JOINT MODEL CODEBASE.
 # Do not interpret MODE=validate as a fitted biological model.
 #
-# FIT CONTRACT — required, not yet implemented:
+# FIT CONTRACT — implemented in full hierarchical model:
 # - Current-quarter age + sex + standardized homozygosity in ALL three
 #   biological hazards: S->E, E->I and S/E/I->death.
 # - Persistent, mean-zero, correlated individual random effects (frailties)
@@ -21,13 +21,10 @@
 #   historical trends in infection transitions. Fixed per-assay Se/Sp.
 # - Uncertainty for genetic effects AND random-effect variances/correlations.
 #
-# CURRENT IMPLEMENTATION DOES NOT FIT THAT MODEL: MODE=validate only
-# verifies the data interface and the nonheterogeneous transition kernel.
-# Do not enable a "fit" mode until the full contract is implemented.
-#
-# Next development will add data-specific observation/death processes,
-# compiled HMM marginalisation, and hierarchical posterior inference IN
-# THIS CODEBASE rather than making standalone SEI variants.
+# Full MCMC is enabled with MODE=full; validation and engineering gates
+# remain separate, using this SAME biological model, not variants.
+# Mortality inferences are still PROVISIONAL until deliberate management
+# deaths, capture effort and parameter recovery are investigated.
 #
 # No DB writes; no database reads; all exports private and gitignored.
 # ============================================================================
@@ -603,6 +600,32 @@ if(mode%in%c("likelihood_check","compile","hierarchical_compile",
       periodEff=c(NA_real_,rep(0,9L)),
       seasonEff=c(NA_real_,rep(0,3L)),
       z=matrix(0,n,4L))
+    # Chain-specific initial values, using the SAME model and priors.
+    # Different starting positions and RNG states help reveal poor
+    # mixing, unlike identical all-zero latent frailty initializations.
+    if(mode=="full"){
+      full_chain <- suppressWarnings(as.integer(
+        Sys.getenv("CHAIN_ID","1")))
+      if(is.na(full_chain)||full_chain<1L||full_chain>99L)
+        fail("CHAIN_ID must be 1..99")
+      init_seed <- 20261117L+full_chain*13007L
+      set.seed(init_seed)
+      init$h4 <- exp(rnorm(1,log(.25),.10))
+      init$f4 <- plogis(rnorm(1,qlogis(.8),.20))
+      init$bGM <- exp(rnorm(1,log(.18),.12))
+      init$betaSE[2:4] <- rnorm(3,0,.12)
+      init$betaEI[2:4] <- rnorm(3,0,.12)
+      init$betaD <- rnorm(4,0,.12)
+      init$entryBeta[2:5] <- rnorm(4,0,.12)
+      init$entryRho <- plogis(rnorm(1,0,.2))
+      init$z <- matrix(rnorm(n*4L,0,.15),nrow=n,ncol=4L)
+      init$yearSE[2:10] <- rnorm(9,0,.08)
+      init$yearEI[2:10] <- rnorm(9,0,.08)
+      init$periodEff[2:10] <- rnorm(9,0,.08)
+      init$seasonEff[2:4] <- rnorm(3,0,.08)
+      init$alphaP <- qlogis(.23)+rnorm(1,0,.15)
+      init$rho <- plogis(rnorm(1,qlogis(.4),.12))
+    }
     cat("\n=== SINGLE BAYESIAN JOINT INFECTION + SURVIVAL MODEL ===\n")
     cat("Mode:",mode,
         "; subset of genotyped badgers:",n,"/",inp$N,"\n")
