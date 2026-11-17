@@ -327,5 +327,140 @@ utils::write.csv(audit_summary,
 cat("Saved aggregated summary: ",
     file.path(outdir,"joint_input_readiness_summary.csv"),"\n",sep="")
 cat("Saved private provenance reconciliation: ",private,"\n",sep="")
+# --------------------------------------------------------------------------
+# Compile a private, source-fingerprinted audit input for this SAME model.
+# Preserve all 1,603 genotyped individuals, including zero-test animals.
+# This is not yet labelled model-ready because the y vs candidate clocks
+# may differ. All observed assays retain their exact q and source ID.
+# --------------------------------------------------------------------------
+f <- readRDS(files["sei_fit"])
+if(!is.list(f) || !is.data.frame(f$sesp)||
+   !all(c("test_name","Se","Sp")%in%names(f$sesp)) ||
+   !identical(as.character(f$sesp$test_name),
+       c("ELISA_BELT","ELISA_INDIRECT","Culture",
+         "DPP","IGRA","StatPak")))
+  fail("Original diagnostic assay parameter table/order changed")
+Se <- as.numeric(f$sesp$Se); Sp <- as.numeric(f$sesp$Sp)
+if(anyNA(Se)||anyNA(Sp)||any(Se<=0|Se>=1)||
+   any(Sp<=0|Sp>=1))
+  fail("Original diagnostic sensitivity or specificity invalid")
+draws <- f$draws
+if(!is.data.frame(draws)||nrow(draws)<10L)
+  fail("Source original SEI exposed-state draws unavailable")
+nms <- names(draws)
+mapped <- vapply(1:6,function(k){
+  names_allowed <- c(paste0("e_mult.",k,"."),
+                     paste0("e_mult.",k),
+                     paste0("e_mult[",k,"]"))
+  which(nms %in% names_allowed)[1L]
+},integer(1))
+if(anyNA(mapped)||anyDuplicated(mapped))
+  fail("Cannot identify six source posterior exposed multipliers")
+m <- vapply(draws[mapped],function(z){
+  if(!is.numeric(z)||anyNA(z)||any(z<0|z>1))
+    fail("Invalid original exposed multiplier posterior draws")
+  mean(z)
+},numeric(1))
+pos <- rbind(1-Sp, m*Se, Se)
+rownames(pos) <- c("S","E","I")
+colnames(pos) <- paste0("test",1:6)
+if(any(pos<=0|pos>=1))
+  fail("Invalid probabilities in diagnostic emission matrix")
+diag_em <- array(0,c(N,T,3L),
+                 dimnames=list(cohort,NULL,c("S","E","I")))
+diag_test_count <- matrix(0L,N,T)
+for(j in seq_len(nrow(cand))){
+  k <- cand$genetic_idx[j]
+  q <- cand$time[j]
+  for(a in 1:6) {
+    z <- cand[[paste0("test",a)]][j]
+    if(is.na(z))next
+    if(z==1L)
+      diag_em[k,q,] <- diag_em[k,q,]+log(pos[,a])
+    else
+      diag_em[k,q,] <- diag_em[k,q,]+log1p(-pos[,a])
+    diag_test_count[k,q] <- diag_test_count[k,q]+1L
+  }
+}
+# No test in a quarter has log likelihood 0 under ALL disease states.
+if(any(diag_em[diag_test_count==0L]!=0))
+  fail("Untested quarter inadvertently became a diagnostic observation")
+if(sum(diag_test_count)!=sum(!is.na(as.matrix(
+  cand[,paste0("test",1:6),drop=FALSE]))))
+  fail("Diagnostic log emission aggregation dropped or duplicated tests")
+cat("Raw diagnostic log emission tensor:",N,"x",T,"x 3 disease states\n")
+cat("Distinct genotyped test-observed badger-quarters:",
+    sum(diag_test_count>0L),"\n")
+cat("Original assay Se/Sp/multipliers retained as FIXED primary model inputs.\n")
+
+# Historical birth/first capture/death are quarter-indexed.
+# Entry-state and quarterly death hazards will be evaluated using age(q).
+# Keep raw hom, and separately store the ORIGINAL 1603-cohort scale.
+hom <- as.numeric(x$hom)
+hom_center <- mean(hom); hom_scale <- sd(hom)
+hom_z <- (hom-hom_center)/hom_scale
+if(!all(is.finite(hom_z))||abs(mean(hom_z))>1e-10)
+  fail("Cannot standardize genotype in original full cohort")
+if(!is.matrix(x$dead)||!identical(dim(x$dead),c(N,T))||
+   anyNA(x$dead)||any(!x$dead%in%c(0L,1L)))
+  fail("Recorded-death matrix absent or has invalid shape/codes")
+for(k in seq_len(N)) {
+  dq <- death[k]
+  if(sum(x$dead[k,])!=as.integer(dq>0L))
+    fail("Death matrix/quarter discrepancy in survival source")
+  if(dq>0L&&x$dead[k,dq]!=1L)
+    fail("Recorded-death quarter disagrees with death matrix")
+}
+# Known death dates and within-quarter capture chronology still require
+# detailed source reconciliation if any same-quarter events occur.
+conflicts <- sum(record$live_after_recorded_death|
+                 !record$death_no_after_first|
+                 record$diag_after_recorded_death|
+                 record$diag_before_birth|
+                 !record$first_capture_marked_live)
+diff_quarters <- length(source_only)+length(diagnostic_only)
+cat("Hard event chronology problems:",conflicts,"\n")
+cat("Quarter-clock discrepancies:",diff_quarters,"\n")
+cat("Important: y=0 uses a monitoring PROXY, not true individual effort.\n")
+
+private_input <- file.path(
+  outdir,"joint_PRIVATE_source_reconciled_PENDING.rds")
+if(file.exists(private_input) && Sys.getenv("OVERWRITE","0")!="1")
+  fail("Private joint input already exists; audit the previous results",
+       " before intentionally replacing with OVERWRITE=1")
+saveRDS(list(
+  audit_only=TRUE,
+  ready_for_joint_fit=FALSE,
+  source_md5=tools::md5sum(files),
+  id=cohort,N=N,T=T,
+  y=x$y,dead=x$dead,
+  first_q=first,birth_q=birth,death_q=death,
+  hom=hom,hom_center=hom_center,hom_scale=hom_scale,
+  hom_z=hom_z,sex=normal(x$sex),
+  log_diagnostic_emission=diag_em,
+  n_diagnostic_tests=diag_test_count,
+  source_candidate=cand[,c("genetic_idx","time","id",
+              "captured",paste0("test",1:6)),drop=FALSE],
+  assay=list(Se=Se,Sp=Sp,exposed_multiplier=m,
+             positive_probability=pos),
+  source_live_only_quarters=source_only,
+  diagnostics_only_quarters=diagnostic_only,
+  hard_chronology_conflicts=conflicts,
+  clock_discrepancies=diff_quarters,
+  same_quarter_capture_death=sum(
+      record$diag_same_quarter_death),
+  monitoring_proxy=x$calendar,
+  assumptions=c(
+    "individual genotype effects estimated per full-genotyped-cohort SD",
+    "sex, time-varying age and biological badger frailties required",
+    "monitoring proxy is not a measured per-individual trapping effort",
+    "diagnostic positivity conditional on S/E/I with fixed assay accuracy",
+    "confirmed live diagnostic encounters only (317 uncertain excluded)",
+    "source survival and diagnostic encounter clocks not silently merged",
+    "death recoveries are distinct from observed live captures",
+    "four-state joint model not fitted; discrepancies require reconciliation"
+  )
+),private_input)
+cat("Saved private audit-only joint input:",private_input,"\n")
 cat("NO JOINT MODEL FIT YET. NO SOURCE DATA MODIFIED.\n")
-cat("INPUT VALIDATION COMPLETE; reconciliation required before final fitting.\n")
+cat("INPUT VALIDATION COMPLETE. Inspect mismatches before enabling fit.\n")
