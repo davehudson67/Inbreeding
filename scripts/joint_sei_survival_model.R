@@ -8,9 +8,26 @@
 # THIS FILE IS THE SINGLE FUTURE JOINT MODEL CODEBASE.
 # Do not interpret MODE=validate as a fitted biological model.
 #
+# FIT CONTRACT — required, not yet implemented:
+# - Current-quarter age + sex + standardized homozygosity in ALL three
+#   biological hazards: S->E, E->I and S/E/I->death.
+# - Persistent, mean-zero, correlated individual random effects (frailties)
+#   for S->E, E->I and death; hierarchical covariance and shrinkage priors.
+# - Separate capture heterogeneity (individual random intercept with
+#   shrinkage if identifiable) to avoid conflating missed captures and death.
+# - A four-state forward HMM conditional on the individual's frailties,
+#   embedded in hierarchical inference sampling/integrating frailties.
+# - Age-dependent Gompertz-Makeham death baseline; age and regularized
+#   historical trends in infection transitions. Fixed per-assay Se/Sp.
+# - Uncertainty for genetic effects AND random-effect variances/correlations.
+#
+# CURRENT IMPLEMENTATION DOES NOT FIT THAT MODEL: MODE=validate only
+# verifies the data interface and the nonheterogeneous transition kernel.
+# Do not enable a "fit" mode until the full contract is implemented.
+#
 # Next development will add data-specific observation/death processes,
-# compiled HMM marginalisation, and posterior/uncertainty estimation IN
-# THIS CODEBASE rather than making further standalone SEI variants.
+# compiled HMM marginalisation, and hierarchical posterior inference IN
+# THIS CODEBASE rather than making standalone SEI variants.
 #
 # No DB writes; no database reads; all exports private and gitignored.
 # ============================================================================
