@@ -33,8 +33,8 @@
 # ============================================================================
 options(stringsAsFactors=FALSE)
 mode <- Sys.getenv("MODE","validate")
-if(!mode %in% c("validate","likelihood_check"))
-  stop("Only MODE=validate or likelihood_check is implemented;",
+if(!mode %in% c("validate","likelihood_check","compile"))
+  stop("Only MODE=validate, likelihood_check or compile is implemented;",
        " joint hierarchical fitting not yet validated.")
 fail <- function(...)stop(paste(...,collapse=""),call.=FALSE)
 normal <- function(z) {
@@ -368,7 +368,7 @@ cat("Emission assumption: condition on first live capture.\n")
 # Demonstration inputs below ARE NOT estimates or scientific results.
 # The full hierarchical frailty prior and MCMC are not implemented yet.
 # --------------------------------------------------------------------------
-if(mode=="likelihood_check"){
+if(mode%in%c("likelihood_check","compile")){
   validated <- file.path(outdir,"joint_PRIVATE_UNRECONCILED_input.rds")
   if(!file.exists(validated))
     fail("Run MODE=validate once to construct the private input")
@@ -447,6 +447,90 @@ if(mode=="likelihood_check"){
   cat("This tests event/observation machinery only.",
       " It is NOT a genotype or mortality estimate.\n")
   cat("JOINT REFERENCE LIKELIHOOD ENGINEERING CHECK: PASS\n")
+  if(mode=="compile"){
+    if(!requireNamespace("nimble",quietly=TRUE))
+      fail("The single joint model requires the installed NIMBLE",
+           " package. Ask administrator to install package nimble.")
+    suppressPackageStartupMessages(library(nimble))
+    source("R/joint_sei_survival_forward_nimble.R",local=TRUE)
+    cat("Compiling single-model 4-state SEI + survival NIMBLE kernel...\n")
+    compiled <- tryCatch(
+      compileNimble(joint_sei_survival_ll),
+      error=function(e) {
+        try(nimble::printErrors(),silent=TRUE)
+        fail("NIMBLE compiled joint kernel failed: ",
+             conditionMessage(e))
+      })
+    betaSE <- unname(demo$SE)
+    betaEI <- unname(demo$EI)
+    betaD <- unname(demo$D)
+    gm <- unname(demo$gm)
+    frailty <- as.numeric(c(zero_re,0))
+    alpha <- qlogis(p_capture)
+    calendarSE <- rep(0,inp$T)
+    calendarEI <- rep(0,inp$T)
+    per <- rep(0,10L)
+    sea <- rep(0,4L)
+    period_index <- as.numeric((seq_len(inp$T)-1L)%/%20L+1L)
+    season_index <- as.numeric((seq_len(inp$T)-1L)%%4L+1L)
+    delta <- numeric(length(chosen))
+    for(j in seq_along(chosen)){
+      i <- chosen[j]
+      qs <- seq.int(inp$first_q[i],inp$T)
+      em <- matrix(inp$log_diagnostic_emission[i,,],
+                   nrow=inp$T,ncol=3L)
+      args <- list(
+        y=as.numeric(inp$y[i,]),
+        first=as.integer(inp$first_q[i]),
+        death=as.integer(ifelse(is.na(inp$death_q[i]),
+                               0L,inp$death_q[i])),
+        birth=as.integer(inp$birth_q[i]),
+        em=em,hom=as.numeric(inp$hom_z[i]),
+        male=as.numeric(inp$sex[i]=="MALE"),
+        entry=demo_entry,
+        betaSE=betaSE,betaEI=betaEI,betaD=betaD,gm=gm,
+        frailty=frailty,
+        calSE=calendarSE,calEI=calendarEI,
+        alphaP=alpha,periodEff=per,seasonEff=sea,
+        periodIndex=period_index,seasonIndex=season_index,
+        rho=rho_recovery)
+      lc <- tryCatch(do.call(compiled$run,args),
+        error=function(e)
+          fail("Compiled function invocation failed: ",
+               conditionMessage(e)))
+      # Exact same inputs in the interpreted nimbleFunction.
+      lr <- do.call(joint_sei_survival_ll$run,args)
+      # Compare pure R reference likelihood (all 4 Markov states).
+      tr <- array(0,c(4L,4L,length(qs)))
+      for(t in seq_along(qs))
+        tr[,,t] <- make_covariate_transition(
+          (qs[t]-inp$birth_q[i])*.25,
+          as.integer(inp$sex[i]=="MALE"),
+          inp$hom_z[i],zero_re,zero_cal,demo)
+      lreference <- forward_joint_reference(
+        tr,as.integer(inp$y[i,qs]),
+        as.integer(inp$dead[i,qs]),
+        rep(p_capture,length(qs)),
+        matrix(inp$log_diagnostic_emission[i,qs,],
+               nrow=length(qs),ncol=3L),
+        demo_entry,rho_recovery)
+      if(!all(is.finite(c(lc,lr,lreference))))
+        fail("Nonfinite joint kernel on tested badger #",j)
+      delta[j] <- max(abs(c(lc-lr,lc-lreference,lr-lreference)))
+      if(delta[j]>1e-7)
+        fail("Compiled/R/reference likelihood mismatch on badger #",
+             j," (max difference ",signif(delta[j],4),")")
+    }
+    cat("Compiled NIMBLE vs interpreted NIMBLE vs independent",
+        " reference:",length(chosen),"real histories PASS\n")
+    cat("Maximum absolute log-likelihood difference:",
+        signif(max(delta),5),"\n")
+    cat("Conditional on first capture; 79 same-quarter",
+        " capture/death records retained.\n")
+    cat("NOT YET A BAYESIAN FIT: correlated frailty priors,",
+        " smoothing and posterior sampling are still to implement.\n")
+    cat("SINGLE JOINT MODEL COMPILED LIKELIHOOD GATE: PASS\n")
+  }
   quit(save="no",status=0L)
 }
 
