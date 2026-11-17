@@ -33,9 +33,11 @@
 # ============================================================================
 options(stringsAsFactors=FALSE)
 mode <- Sys.getenv("MODE","validate")
-if(!mode %in% c("validate","likelihood_check","compile"))
-  stop("Only MODE=validate, likelihood_check or compile is implemented;",
-       " joint hierarchical fitting not yet validated.")
+if(!mode %in% c("validate","likelihood_check","compile",
+                  "hierarchical_compile","hierarchical_benchmark"))
+  stop("MODE must be validate, likelihood_check, compile,",
+       " hierarchical_compile or hierarchical_benchmark;",
+       " full posterior fitting is not yet enabled.")
 fail <- function(...)stop(paste(...,collapse=""),call.=FALSE)
 normal <- function(z) {
   x <- toupper(trimws(as.character(z)))
@@ -371,7 +373,8 @@ cat("Emission assumption: condition on first live capture.\n")
 # Demonstration inputs below ARE NOT estimates or scientific results.
 # The full hierarchical frailty prior and MCMC are not implemented yet.
 # --------------------------------------------------------------------------
-if(mode%in%c("likelihood_check","compile")){
+if(mode%in%c("likelihood_check","compile","hierarchical_compile",
+             "hierarchical_benchmark")){
   validated <- file.path(outdir,"joint_PRIVATE_UNRECONCILED_input.rds")
   if(!file.exists(validated))
     fail("Run MODE=validate once to construct the private input")
@@ -539,6 +542,165 @@ if(mode%in%c("likelihood_check","compile")){
     cat("NOT YET A BAYESIAN FIT: correlated frailty priors,",
         " smoothing and posterior sampling are still to implement.\n")
     cat("SINGLE JOINT MODEL COMPILED LIKELIHOOD GATE: PASS\n")
+  }
+  if(mode%in%c("hierarchical_compile","hierarchical_benchmark")){
+    if(!requireNamespace("nimble",quietly=TRUE))
+      fail("NIMBLE is required for the joint model hierarchy")
+    suppressPackageStartupMessages(library(nimble))
+    source("R/joint_sei_survival_forward_nimble.R",local=TRUE)
+    source("R/joint_sei_survival_hierarchy_nimble.R",local=TRUE)
+
+    # The SAME intended scientific model will be used at full N=1603.
+    # Only the number of individuals used for this engineering check
+    # changes. The scientific regression and prior structure do not.
+    sel <- chosen
+    n <- length(sel)
+    TT <- as.integer(inp$T)
+    pid <- as.numeric((seq_len(TT)-1L)%/%20L+1L)
+    sid <- as.numeric((seq_len(TT)-1L)%%4L+1L)
+    yi <- as.integer((seq_len(TT)-1L)%/%20L+1L)
+    log_em <- inp$log_diagnostic_emission[sel,,,drop=FALSE]
+    dim(log_em) <- c(n,TT,3L)
+    if(!identical(dim(log_em),c(n,TT,3L)))
+      fail("Hierarchical input assay dimensions incorrect")
+    const <- list(
+      N=as.integer(n),T=TT,
+      y=matrix(as.integer(inp$y[sel,,drop=FALSE]),nrow=n),
+      first=as.integer(inp$first_q[sel]),
+      death=as.integer(ifelse(is.na(inp$death_q[sel]),0L,
+                               inp$death_q[sel])),
+      birth=as.integer(inp$birth_q[sel]),
+      em=log_em,
+      hom=as.numeric(inp$hom_z[sel]),
+      male=as.numeric(inp$sex[sel]=="MALE"),
+      yearIndex=as.integer(yi),
+      periodIndex=pid,seasonIndex=sid)
+    model_data <- list(zeros=rep(0L,n))
+    if(any(const$first<1L|const$first>TT)||
+       any(const$first<const$birth)||
+       any(!is.finite(const$hom))||
+       any(!const$male%in%c(0L,1L)))
+      fail("Invalid index, age, sex or genotype in hierarchical data")
+
+    # Initialization values only; NOT inferred population parameters.
+    init <- list(
+      h4=.25,f4=.8,bGM=.18,
+      betaSE=c(qlogis(.035),0,0,0),
+      betaEI=c(qlogis(.05),0,0,0),
+      betaD=rep(0,4),
+      entryBeta=c(qlogis(.1),0,0,0,0),
+      entryRho=.5,
+      sigmaYearSE=.25,sigmaYearEI=.25,
+      yearSE=c(NA_real_,rep(0,9L)),
+      yearEI=c(NA_real_,rep(0,9L)),
+      sigmaSE=.3,sigmaEI=.3,sigmaD=.3,
+      load21=0,load31=0,load32=0,
+      sigmaCapture=.4,
+      alphaP=qlogis(.23),rho=.4,
+      periodEff=c(NA_real_,rep(0,9L)),
+      seasonEff=c(NA_real_,rep(0,3L)),
+      z=matrix(0,n,4L))
+    cat("\n=== SINGLE BAYESIAN JOINT INFECTION + SURVIVAL MODEL ===\n")
+    cat("Mode:",mode,
+        "; subset of genotyped badgers:",n,"/",inp$N,"\n")
+    cat("Sex, dynamic age, homozygosity, S/E/I infection state:",
+        " all active.\n")
+    cat("Correlated noncentred biological frailties:",
+        " S->E, E->I, death; separate capture frailty.\n")
+    cat("Five-year regularized infection pressure:",
+        " one fixed scientific structure.\n")
+    cat("Same-quarter live capture/death: retained in likelihood.\n")
+    cat("Fixed six-assay accuracy; first live capture conditioned upon.\n")
+    cat("Defining Bayesian hierarchy and evaluating initial log density...\n")
+    model <- tryCatch(
+      nimbleModel(
+        joint_sei_survival_model_code,
+        constants=const,data=model_data,inits=init,
+        check=TRUE,calculate=FALSE),
+      error=function(e)
+        fail("NIMBLE joint hierarchy setup failed: ",
+             conditionMessage(e)))
+    lpR <- model$calculate()
+    if(!is.finite(lpR))
+      fail("Nonfinite initial Bayesian model log probability: ",
+           lpR,"; inspect model initialization")
+    cat("Interpreted joint posterior log density:",signif(lpR,9),"\n")
+    cat("Compiling full hierarchical model on pilot cohort...\n")
+    cm <- tryCatch(
+      compileNimble(model),
+      error=function(e){
+        try(printErrors(),silent=TRUE)
+        fail("NIMBLE hierarchical model compilation failed: ",
+             conditionMessage(e))})
+    lpC <- cm$calculate()
+    if(!is.finite(lpC)||abs(lpR-lpC)>1e-5)
+      fail("Compiled hierarchy log probability disagrees with R: ",
+           signif(lpR,8)," vs ",signif(lpC,8))
+    cat("Compiled joint posterior log density:",
+        signif(lpC,9),"\n")
+    cat("Difference compiled vs interpreted:",
+        signif(abs(lpR-lpC),5),"\n")
+    # Require zero diagnostic/entry data mismatch and identical
+    # per-badger conditional HMM likelihoods.
+    llR <- as.numeric(model$ll)
+    llC <- as.numeric(cm$ll)
+    if(length(llR)!=n||length(llC)!=n||
+       any(!is.finite(llR))||any(!is.finite(llC))||
+       max(abs(llR-llC))>1e-7)
+      fail("Compiled per-badger HMM likelihoods disagree with R")
+    cat("Per-badger forward likelihoods matched for all",
+        n,"pilot individuals.\n")
+    save_path <- file.path(outdir,
+        paste0("joint_hierarchical_",mode,"_gate.rds"))
+    if(file.exists(save_path) &&
+       Sys.getenv("OVERWRITE","0")!="1")
+      fail("Previous hierarchical gate exists: ",save_path,
+           "; use OVERWRITE=1 only after reviewing old output")
+    result <- list(
+      mode=mode,n=n,total_cohort=inp$N,
+      log_posterior_R=lpR,log_posterior_compiled=lpC,
+      max_individual_ll_delta=max(abs(llR-llC)),
+      input_source_md5=inp$source_md5,
+      input_md5=tools::md5sum(validated),
+      model_code_md5=tools::md5sum(c(
+        "R/joint_sei_survival_hierarchy_nimble.R",
+        "R/joint_sei_survival_forward_nimble.R")),
+      note="Engineering gate only; pilot subset; not a fitted posterior")
+
+    if(mode=="hierarchical_benchmark"){
+      # Exactly the SAME hierarchy and likelihood, benchmark sampler
+      # costs on real records. Do not interpret as inference.
+      cat("Constructing full-model sampler schedule...\n")
+      sampler <- configureMCMC(
+        model,
+        monitors=c("betaSE","betaEI","betaD",
+         "entryBeta","entryRho","h4","f4","bGM",
+         "sigmaSE","sigmaEI","sigmaD","load21",
+         "load31","load32","sigmaCapture",
+         "sigmaYearSE","sigmaYearEI",
+         "yearSE","yearEI","alphaP","rho"),
+        thin=1)
+      mcmc <- buildMCMC(sampler)
+      cmcmc <- tryCatch(
+        compileNimble(mcmc,project=model),
+        error=function(e){
+          try(printErrors(),silent=TRUE)
+          fail("NIMBLE MCMC compilation failed: ",
+               conditionMessage(e))})
+      set.seed(20261117L)
+      bench <- system.time(
+        draws <- runMCMC(cmcmc,niter=2L,nburnin=0L,
+            thin=1L,nchains=1L,progressBar=FALSE,
+            samplesAsCodaMCMC=FALSE))
+      result$seconds_for_2_sweeps <- unname(bench[["elapsed"]])
+      result$parameter_columns <- colnames(draws)
+      cat("Two trial MCMC sweeps (same model):",
+          result$seconds_for_2_sweeps,"seconds.\n")
+      cat("Benchmark is not an analysed posterior sample.\n")
+    }
+    saveRDS(result,save_path)
+    cat("Saved:",save_path,"\n")
+    cat("SINGLE JOINT HIERARCHICAL MODEL COMPILATION GATE: PASS\n")
   }
   quit(save="no",status=0L)
 }
