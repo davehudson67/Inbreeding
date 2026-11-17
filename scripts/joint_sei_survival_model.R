@@ -277,8 +277,8 @@ key_table <- function(key,reason) {
   if(!length(key))return(data.frame(
     genetic_idx=integer(),time=integer(),reason=character()))
   parts <- strsplit(key,":",fixed=TRUE)
-  data.frame(genetic_idx=as.integer(vapply(parts,\`[\`,character(1),1L)),
-             time=as.integer(vapply(parts,\`[\`,character(1),2L)),
+  data.frame(genetic_idx=as.integer(vapply(parts,function(v) v[[1L]],character(1))),
+             time=as.integer(vapply(parts,function(v) v[[2L]],character(1))),
              reason=rep(reason,length(key)))
 }
 dif <- rbind(
