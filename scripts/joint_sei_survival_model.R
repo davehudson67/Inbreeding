@@ -33,8 +33,9 @@
 # ============================================================================
 options(stringsAsFactors=FALSE)
 mode <- Sys.getenv("MODE","validate")
-if(!mode %in% c("validate"))
-  stop("Only MODE=validate is implemented. Joint fitting not yet validated.")
+if(!mode %in% c("validate","likelihood_check"))
+  stop("Only MODE=validate or likelihood_check is implemented;",
+       " joint hierarchical fitting not yet validated.")
 fail <- function(...)stop(paste(...,collapse=""),call.=FALSE)
 normal <- function(z) {
   x <- toupper(trimws(as.character(z)))
@@ -357,6 +358,97 @@ cat("\n=== ONE JOINT SEI + SURVIVAL MODEL: INPUT VALIDATION ===\n")
 cat("Four-state transition and observation unit tests: PASS\n")
 cat("State order: S,E,I,D (death absorbing)\n")
 cat("Emission assumption: condition on first live capture.\n")
+
+# --------------------------------------------------------------------------
+# Engineering check against the PREVIOUSLY VALIDATED PRIVATE data.
+# We deliberately do not refit or recompute the source audit in this mode.
+# In particular, the 79 live-captured/dead-in-same-quarter histories
+# must have finite positive likelihood under the observation/event order.
+#
+# Demonstration inputs below ARE NOT estimates or scientific results.
+# The full hierarchical frailty prior and MCMC are not implemented yet.
+# --------------------------------------------------------------------------
+if(mode=="likelihood_check"){
+  validated <- file.path(outdir,"joint_PRIVATE_UNRECONCILED_input.rds")
+  if(!file.exists(validated))
+    fail("Run MODE=validate once to construct the private input")
+  inp <- readRDS(validated)
+  if(!isTRUE(inp$audit_only)||
+     as.integer(inp$N)!=1603L||
+     as.integer(inp$T)!=200L||
+     !identical(unname(as.character(inp$source_md5)),
+                unname(as.character(tools::md5sum(files))))||
+     as.integer(inp$clock_discrepancies)!=0L||
+     as.integer(inp$hard_chronology_conflicts)!=0L||
+     as.integer(inp$same_quarter_capture_death)!=79L)
+    fail("Cached private data/audit differs from the validated 1603-badger",
+         " 79 same-quarter-death source; revalidate before inference")
+  if(!identical(dim(inp$log_diagnostic_emission),
+                c(as.integer(inp$N),as.integer(inp$T),3L)))
+    fail("Private joint assay tensor has unexpected dimensions")
+
+  death <- as.integer(inp$death_q)
+  same <- which(death>0L & vapply(seq_len(inp$N),function(i){
+    death[i]>0L && inp$y[i,death[i]]==1L
+  },logical(1)))
+  other <- which(death>0L & !seq_len(inp$N)%in%same)
+  censored <- which(death==0L)
+  chosen <- unique(c(head(same,6L),head(other,6L),
+                     head(censored,8L)))
+  if(length(same)!=79L||length(chosen)<15L)
+    fail("Unexpected fatal/live source event representation")
+
+  cat("\n=== JOINT LIKELIHOOD: REAL-HISTORY ENGINEERING CHECK ===\n")
+  cat("Reference HMM on",length(chosen),
+      "selected badgers (same-quarter death, other death, censored).\n")
+  cat("Original assay log likelihoods are used without altering values.\n")
+  cat("Illustrative prior/parameter values ONLY; NO FIT.\n")
+  demo_entry <- c(.92,.076,.004)
+  p_capture <- .23
+  rho_recovery <- .4
+  rows <- vector("list",length(chosen))
+  for(j in seq_along(chosen)) {
+    i <- chosen[j]
+    qs <- seq.int(as.integer(inp$first_q[i]),as.integer(inp$T))
+    K <- length(qs)
+    trans <- array(0,c(4L,4L,as.integer(K)))
+    sex_male <- as.integer(inp$sex[i]=="MALE")
+    for(t in seq_len(K)) {
+      age <- (qs[t]-inp$birth_q[i])*.25
+      trans[,,t] <- make_covariate_transition(
+        age,sex_male,inp$hom_z[i],
+        frailty=zero_re,calendar=zero_cal,
+        theta=demo)
+    }
+    em <- matrix(inp$log_diagnostic_emission[i,qs,],
+                 nrow=K,ncol=3L)
+    ll <- forward_joint_reference(
+      trans,as.integer(inp$y[i,qs]),
+      as.integer(inp$dead[i,qs]),
+      rep(p_capture,K),em,
+      demo_entry,rho_recovery)
+    if(!is.finite(ll))
+      fail("Likelihood not finite for selected individual ",i,
+           " (private tattoo omitted)")
+    rows[[j]] <- data.frame(
+      category=if(i%in%same)"LIVE_AND_DEAD_SAME_QUARTER"
+         else if(i%in%other)"RECOVERED_DEATH"
+         else "NO_RECORDED_DEATH",
+      n_quarters=K,
+      n_captures=sum(inp$y[i,qs]==1L),
+      n_tests=sum(inp$n_diagnostic_tests[i,qs]),
+      ll=ll)
+  }
+  checks <- do.call(rbind,rows)
+  print(stats::aggregate(
+    cbind(n_quarters,n_captures,n_tests)~category,
+    checks,FUN=sum),row.names=FALSE)
+  cat("All",nrow(checks),"illustrative real-history likelihoods: FINITE\n")
+  cat("This tests event/observation machinery only.",
+      " It is NOT a genotype or mortality estimate.\n")
+  cat("JOINT REFERENCE LIKELIHOOD ENGINEERING CHECK: PASS\n")
+  quit(save="no",status=0L)
+}
 
 x <- readRDS(files["survival"])
 required_x <- c("id","N","T","y","first_q","birth_q","death_q",
