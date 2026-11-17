@@ -1,5 +1,5 @@
 # ============================================================================
-# Stage 82: DIRECT-DIAGNOSTIC, GENETIC SEI JOINT-LIKELIHOOD SMOKE TEST
+# Stage 82: ADJUSTED DIRECT-DIAGNOSTIC GENETIC SEI LIKELIHOOD
 #
 # S -> E and E -> I probabilities include separate homozygosity effects.
 # Latent quarterly states are integrated out by a 3-state HMM forward pass.
@@ -181,7 +181,7 @@ for(k in seq_along(chosen)){
                    h=hz[gis[k]],capture_count=nrow(d))
   total_captures <- total_captures+nrow(d)
 }
-cat("Pilot capture records:",total_captures,
+cat("Selected confirmed live capture records:",total_captures,
     "; observed binary tests:",total_assays,"\n")
 cat("Median modelled quarters spanning first-to-last capture:",median(vapply(obs,function(z)z$nq,
      integer(1))),"\n")
@@ -438,8 +438,13 @@ cat("Agreement of alternate starting values (penalised objective):",
     "\n")
 cat("Model is conditional on observed captures and tests;",
     "Se/Sp fixed. It is not a survival model.\n")
-dst <- file.path(base,"stage82_age_sex_calendar_adjustment.csv")
-fit_path <- file.path(base,"stage82_age_sex_calendar_adjustment.rds")
+stem <- sprintf("stage82_age_sex_calendar_adjustment_%04d",length(chosen))
+dst <- file.path(base,paste0(stem,".csv"))
+fit_path <- file.path(base,paste0(stem,".rds"))
+if((file.exists(dst)||file.exists(fit_path)) &&
+   Sys.getenv("OVERWRITE","0")!="1")
+  fail("Existing Stage82 results would be overwritten. To rerun intentionally,",
+       " set OVERWRITE=1 or keep the existing files.")
 write.csv(summary,dst,row.names=FALSE)
 saveRDS(list(summary=summary,
    fits=list(null=fit_null,genetics=best,genetics_start1=fit_genetics,
