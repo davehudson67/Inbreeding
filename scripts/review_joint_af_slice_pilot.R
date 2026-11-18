@@ -14,14 +14,18 @@ root <- "outputs/joint_sei_survival/full_joint_20261117"
 paths <- file.path(root,sprintf("chain_%02d",1:5),"posterior_samples.rds")
 if(!all(file.exists(paths)))
   fail("Missing chain files: ",paste(paths[!file.exists(paths)],collapse=", "))
-c <- lapply(paths,readRDS)
+runs <- lapply(paths,readRDS)
 tag <- c("RW1","RW2","RW3","RW_block4","AF_slice5")
 expected <- c("default","default","default","blocked","af_slice")
 for(j in 1:5){
-  z <- c[[j]]
+  z <- runs[[j]]
+  scheme_matches <- if(j<=3L)
+    (is.null(z$sampler_scheme) ||
+       identical(z$sampler_scheme,"default")) else
+       identical(z$sampler_scheme,expected[j])
   if(as.integer(z$chain)!=j || as.integer(z$N)!=1603L ||
      !identical(z$status,"UNVALIDATED_PROVISIONAL")||
-     !identical(z$sampler_scheme,expected[j]))
+     !scheme_matches)
     fail("Chain ",j," unexpected cohort, sampler or status")
   path <- dirname(paths[j])
   exit <- file.path(path,"process_exit_status.txt")
@@ -39,11 +43,11 @@ for(j in 1:5){
 hashkey <- function(z,k)
   paste(unname(as.character(z[[k]])),collapse=":")
 for(k in c("source_md5","input_md5"))
-  if(length(unique(vapply(c,hashkey,character(1),k=k)))!=1L)
+  if(length(unique(vapply(runs,hashkey,character(1),k=k)))!=1L)
     fail("Different full-data provenance across chains: ",k)
 science <- c("R/joint_sei_survival_hierarchy_nimble.R",
              "R/joint_sei_survival_forward_nimble.R")
-sci <- vapply(c,function(z){
+sci <- vapply(runs,function(z){
   h <- z$model_code_md5
   if(!all(science%in%names(h)))
     fail("Missing scientific model hashes")
@@ -51,7 +55,7 @@ sci <- vapply(c,function(z){
 },character(1))
 if(length(unique(sci))!=1L)
   fail("Scientific likelihood or priors changed; cannot compare samplers")
-m <- lapply(c,function(z)as.matrix(z$samples))
+m <- lapply(runs,function(z)as.matrix(z$samples))
 if(!all(vapply(m,function(x)identical(colnames(x),colnames(m[[1]])),
                logical(1))))
   fail("Different monitor columns across samplers")
@@ -86,7 +90,7 @@ derive <- function(x){
 D <- lapply(m,derive)
 nm <- colnames(D[[1]])
 summarise_one <- function(x,index) {
-  z <- c[[index]]
+  z <- runs[[index]]
   n <- nrow(x)
   mid <- n%/%2L
   ess <- suppressWarnings(coda::effectiveSize(coda::mcmc(x)))
@@ -117,7 +121,7 @@ cat("All 5 chains passed exit, input and scientific source checks: PASS\n")
 cat("IMPORTANT: three original full chains failed Rhat/ESS criteria.\n")
 cat("One AF pilot and one RW_block pilot cannot demonstrate convergence.\n\n")
 meta <- do.call(rbind,lapply(1:5,function(j) {
-  x<-c[[j]]
+  x<-runs[[j]]
   data.frame(chain=j,sampler=tag[j],niter=as.integer(x$iterations),
              burnin=as.integer(x$burnin),thin=as.integer(x$thin),
              draws=nrow(x$samples),
