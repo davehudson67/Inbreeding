@@ -63,3 +63,23 @@ Before fitting, check that genetic IDs, q indices, death times, first-capture en
 - Poorly mixed parameters: `load32` (Rhat 1.267, bulk ESS 10.05), `sigmaD` (1.192, 10.80), `load31` (1.135, 15.40), `h4` (1.114, 17.40), `f4` (1.108, 18.09), and several acquisition/calendar terms. This is substantive **nonconvergence**, not merely a reporting problem.
 - The 18 Nov reporting run reached model diagnostics and created files, but ended in an R parse error at a multiline `if/else` verdict statement (exit 1). This affected **report finalization only**, not any MCMC chain. Fixed in `scripts/summarise_joint_sei_survival_chains.R` (commit `1f06ebd`), with added per-chain and within-chain-half summaries.
 - Next: re-run the **read-only reporting script** on the existing chains, inspect derived homozygosity effects and trace disagreement without treating them as validated estimates. Do not automatically publish or infer biology from pooled draws; examine weakly identified mortality/capture/entry frailties, baseline ridge, event-provenance assumptions and sampler autocorrelation before deciding between longer chains and within-model sampler tuning. Preserve all source and fitted files.
+
+## Completed full-model posterior review — 18 November 2026
+
+Read-only reporting from **three completed full hierarchical chains**, verified identical source/model hashes and independent seeds, gave 2,000 post-burn-in samples each (16,000 iterations, 6,000 burn-in, thin 5; 1,603 genotyped badgers). The reporting run exited successfully on the second attempt and saved `outputs/joint_sei_survival/full_joint_20261117/three_chain_review_20261118T075447`; earlier reporting syntax failure did **not** affect the underlying MCMC.
+
+**Full hierarchical model DOES NOT MEET convergence criteria:** rank-normalized maximum R-hat 1.266524, minimum bulk ESS 10.05231; 44 of 62 nonconstant monitored parameters fail R-hat <= 1.01 / ESS >= 400. Worst: `load32` R-hat 1.267, ESS 10; `sigmaD` 1.192, ESS 11; `load31` 1.135, ESS 15; GM `h4` 1.114 / `f4` 1.108; historical S->E year effects also mix poorly. These could reflect correlations between baseline hazard, mortality frailties and detection, and/or weak identification; no mechanistic conclusion is established by mixing alone.
+
+**PROVISIONAL genetic association summaries only (1 SD increase in homozygosity, conditional on model):**
+
+| Process | Posterior median ratio (95% CrI) | R-hat | Bulk ESS |
+| --- | --- | --- | --- |
+| S->E acquisition odds ratio | 1.29688 (0.9921–1.6988) | 1.001 | 2226 |
+| E->I progression odds ratio | 1.49057 (0.9685–2.3494) | 1.003 | 2024 |
+| Mortality hazard ratio | 0.97590 (0.8931–1.0583) | 1.003 | 1519 |
+
+All three 95% intervals include 1. The genetic slopes have considerably better chain-mixing diagnostics than many nuisance parameters: per-chain log-odds medians were S->E 0.26367/0.26948/0.24764, E->I 0.39389/0.41358/0.39103, mortality -0.02495/-0.02603/-0.02282. This consistency **does not validate the full posterior or establish robustness to identification, prior or data assumptions**.
+
+**PROVISIONAL individual frailty:** SD(SE) 1.3406 (0.6671–1.4922), R-hat 1.007; SD(EI) 1.3459 (0.7345–1.6993), R-hat 1.004; SD(death) 0.96584 (0.5923–1.4355), R-hat 1.113. SE frailty scale approaches the uniform-prior upper bound of 1.5. Cor(SE,EI) 0.3767 (-0.1217–0.9208), R-hat 1.020; Cor(SE,death) -0.1965 (-0.8310–0.3605), R-hat 1.135; Cor(EI,death) -0.0725 (-0.5952–0.6331), R-hat 1.150. The mortality frailty covariance **is not reliably estimated**.
+
+**Next:** Do not simply extend chains or pool estimates for publication. Review trace/cross-correlations, mortality cause categories and prior-boundary behavior; then tune MCMC proposals *without changing the scientific model* and assess simulations/posterior predictive checks. Keep full original chains and this result record intact. Mortality includes possible management removals and a proxy for monitoring, so is not necessarily natural mortality.
