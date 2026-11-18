@@ -557,7 +557,10 @@ if(mode%in%c("likelihood_check","compile","hierarchical_compile",
     # The SAME intended scientific model will be used at full N=1603.
     # Only the number of individuals used for this engineering check
     # changes. The scientific regression and prior structure do not.
-    sel <- if(mode=="full") seq_len(inp$N) else chosen
+    full_benchmark <- mode=="hierarchical_benchmark" &&
+      identical(Sys.getenv("BENCHMARK_FULL","0"),"1")
+    sel <- if(mode=="full"||full_benchmark)
+      seq_len(inp$N) else chosen
     n <- length(sel)
     TT <- as.integer(inp$T)
     if(mode=="full" && n!=1603L)
@@ -725,6 +728,7 @@ if(mode%in%c("likelihood_check","compile","hierarchical_compile",
           paste0("joint_hierarchical_",mode,
                  if(sampler_scheme=="blocked")"_blocked" else
                    if(sampler_scheme=="af_slice")"_af_slice" else "",
+                 if(full_benchmark)"_full_cohort" else "",
                  "_gate.rds"))
       if(file.exists(save_path) &&
          Sys.getenv("OVERWRITE","0")!="1")
@@ -777,17 +781,29 @@ if(mode%in%c("likelihood_check","compile","hierarchical_compile",
       seed <- as.integer(20261117L + chain*13007L)
       set.seed(seed)
       if(mode=="hierarchical_benchmark"){
+        sweeps <- suppressWarnings(as.integer(
+          Sys.getenv("BENCHMARK_SWEEPS","2")))
+        if(is.na(sweeps)||sweeps<2L||sweeps>100L)
+          fail("BENCHMARK_SWEEPS must be 2..100")
+        cat("MCMC timing: cohort N =",n,
+            "; sampler =",sampler_scheme,
+            "; test sweeps =",sweeps,"\n")
         bench <- system.time(
-          draws <- runMCMC(cmcmc,niter=2L,nburnin=0L,
+          draws <- runMCMC(cmcmc,niter=sweeps,nburnin=0L,
               thin=1L,nchains=1L,progressBar=FALSE,
               samplesAsCodaMCMC=FALSE))
         result$sampler_scheme <- sampler_scheme
         result$block_metadata <- block_metadata
-        result$seconds_for_2_sweeps <- unname(bench[["elapsed"]])
+        result$benchmark_sweeps <- sweeps
+        result$seconds_for_benchmark_sweeps <- unname(bench[["elapsed"]])
+        result$seconds_per_sweep <- unname(bench[["elapsed"]])/sweeps
         result$parameter_columns <- colnames(draws)
-        cat("Two trial MCMC sweeps (same model):",
-            result$seconds_for_2_sweeps,"seconds.\n")
-        cat("Benchmark is not an analysed posterior sample.\n")
+        cat("Trial MCMC sweeps:",sweeps,
+            "; total sampling seconds:",
+            signif(result$seconds_for_benchmark_sweeps,6),
+            "; seconds per sweep:",
+            signif(result$seconds_per_sweep,6),"\n")
+        cat("Timing gate only; no biological inference or convergence.\n")
       } else {
         niter <- suppressWarnings(as.integer(
           Sys.getenv("NITER","8000")))
