@@ -31,11 +31,11 @@
 options(stringsAsFactors=FALSE)
 mode <- Sys.getenv("MODE","validate")
 sampler_scheme <- Sys.getenv("SAMPLER_SCHEME","default")
-if(!sampler_scheme%in%c("default","blocked"))
-  stop("SAMPLER_SCHEME must be default or blocked")
-if(sampler_scheme=="blocked" && !mode%in%
+if(!sampler_scheme%in%c("default","blocked","af_slice"))
+  stop("SAMPLER_SCHEME must be default, blocked or af_slice")
+if(sampler_scheme!="default" && !mode%in%
    c("hierarchical_benchmark","full"))
-  stop("Blocked MCMC tuning applies only to MCMC benchmark/full modes")
+  stop("Special MCMC samplers apply only to benchmark/full modes")
 if(!mode %in% c("validate","likelihood_check","compile",
                   "hierarchical_compile","hierarchical_benchmark",
                   "full"))
@@ -723,7 +723,8 @@ if(mode%in%c("likelihood_check","compile","hierarchical_compile",
     } else {
       save_path <- file.path(outdir,
           paste0("joint_hierarchical_",mode,
-                 if(sampler_scheme=="blocked")"_blocked" else "",
+                 if(sampler_scheme=="blocked")"_blocked" else
+                   if(sampler_scheme=="af_slice")"_af_slice" else "",
                  "_gate.rds"))
       if(file.exists(save_path) &&
          Sys.getenv("OVERWRITE","0")!="1")
@@ -758,6 +759,12 @@ if(mode%in%c("likelihood_check","compile","hierarchical_compile",
           sampler,tools::md5sum(validated))
         cat("Blocked proposal tuning based on original 3 chains;",
             " no changes to model likelihood/priors.\n")
+      } else if(sampler_scheme=="af_slice"){
+        source("R/joint_sei_sampler_af_slice.R",local=TRUE)
+        block_metadata <- configure_joint_sei_AF_slice(
+          sampler,tools::md5sum(validated))
+        cat("AF_slice covariance directions adapt during burn-in;",
+            " same biological model and priors.\n")
       }
       mcmc <- buildMCMC(sampler)
       cmcmc <- tryCatch(
