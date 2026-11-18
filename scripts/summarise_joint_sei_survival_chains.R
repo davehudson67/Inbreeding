@@ -297,6 +297,31 @@ utils::write.csv(derived_by_chain,
   file.path(outdir,"derived_effects_by_chain.csv"),
   row.names=FALSE)
 
+# Retain all three chains' marginal distributions separately to distinguish
+# strong between-chain disagreement from persistent within-chain movement.
+parameter_by_chain <- do.call(rbind,lapply(1:3,function(j){
+  x <- M[[j]]
+  data.frame(
+    chain=j,parameter=colnames(x),
+    median=unname(apply(x,2,median)),
+    lower95=unname(apply(x,2,quantile,probs=.025)),
+    upper95=unname(apply(x,2,quantile,probs=.975)),
+    first_half_median=unname(apply(
+      x[seq_len(floor(nrow(x)/2)),,drop=FALSE],2,median)),
+    second_half_median=unname(apply(
+      x[seq.int(floor(nrow(x)/2)+1L,nrow(x)),,drop=FALSE],2,median)),
+    row.names=NULL)
+}))
+utils::write.csv(parameter_by_chain,
+  file.path(outdir,"parameters_by_chain_and_half.csv"),
+  row.names=FALSE)
+cat("\n=== KEY GENETIC SLOPES BY CHAIN (PROVISIONAL) ===\n")
+key_slopes <- c("betaSE[4]","betaEI[4]","betaD[2]")
+print(parameter_by_chain[
+  parameter_by_chain$parameter%in%key_slopes,
+  c("chain","parameter","median","first_half_median",
+    "second_half_median")],row.names=FALSE,digits=4)
+
 # Save a short machine-readable verdict, NOT a scientific conclusion.
 method_modern <- grepl("rank-normalized",diag_type,fixed=TRUE)
 passing <- method_modern && nrow(poor)==0 &&
@@ -306,9 +331,11 @@ passing <- method_modern && nrow(poor)==0 &&
   all(derived_summary$ess_bulk>=400) &&
   all(is.finite(derived_summary$ess_tail)) &&
   all(derived_summary$ess_tail>=400)
-verdict <- if(passing)
+verdict <- if (passing) {
   "SCREEN_PASS: numeric mixing thresholds met, scientific validation pending"
-  else "REVIEW_REQUIRED: mixing/diagnostics or scientific validation pending"
+} else {
+  "REVIEW_REQUIRED: mixing/diagnostics or scientific validation pending"
+}
 writeLines(c(
   verdict,
   paste("Diagnostic method:",diag_type),
