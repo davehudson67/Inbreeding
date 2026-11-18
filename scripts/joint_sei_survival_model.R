@@ -30,6 +30,12 @@
 # ============================================================================
 options(stringsAsFactors=FALSE)
 mode <- Sys.getenv("MODE","validate")
+sampler_scheme <- Sys.getenv("SAMPLER_SCHEME","default")
+if(!sampler_scheme%in%c("default","blocked"))
+  stop("SAMPLER_SCHEME must be default or blocked")
+if(sampler_scheme=="blocked" && !mode%in%
+   c("hierarchical_benchmark","full"))
+  stop("Blocked MCMC tuning applies only to MCMC benchmark/full modes")
 if(!mode %in% c("validate","likelihood_check","compile",
                   "hierarchical_compile","hierarchical_benchmark",
                   "full"))
@@ -636,6 +642,8 @@ if(mode%in%c("likelihood_check","compile","hierarchical_compile",
     cat("Five-year regularized infection pressure:",
         " one fixed scientific structure.\n")
     cat("Same-quarter live capture/death: retained in likelihood.\n")
+    cat("Sampler configuration:",sampler_scheme,
+        "(same biological model and priors).\n")
     cat("Fixed six-assay accuracy; first live capture conditioned upon.\n")
     cat("Defining Bayesian hierarchy and evaluating initial log density...\n")
     model <- tryCatch(
@@ -695,6 +703,7 @@ if(mode%in%c("likelihood_check","compile","hierarchical_compile",
              "; inspect it before restarting")
       saveRDS(list(
         chain=chain,n=n,
+        sampler_scheme=sampler_scheme,
         input_md5=tools::md5sum(validated),
         source_md5=inp$source_md5,
         model_md5=tools::md5sum(c(
@@ -713,7 +722,9 @@ if(mode%in%c("likelihood_check","compile","hierarchical_compile",
           " mortality inference is PROVISIONAL.\n")
     } else {
       save_path <- file.path(outdir,
-          paste0("joint_hierarchical_",mode,"_gate.rds"))
+          paste0("joint_hierarchical_",mode,
+                 if(sampler_scheme=="blocked")"_blocked" else "",
+                 "_gate.rds"))
       if(file.exists(save_path) &&
          Sys.getenv("OVERWRITE","0")!="1")
         fail("Previous hierarchical gate exists: ",save_path,
@@ -740,6 +751,14 @@ if(mode%in%c("likelihood_check","compile","hierarchical_compile",
          "yearSE","yearEI","periodEff","seasonEff",
          "alphaP","rho")
       sampler <- configureMCMC(model,monitors=monitor,thin=1)
+      block_metadata <- NULL
+      if(sampler_scheme=="blocked"){
+        source("R/joint_sei_sampler_blocking.R",local=TRUE)
+        block_metadata <- configure_joint_sei_blocked(
+          sampler,tools::md5sum(validated))
+        cat("Blocked proposal tuning based on original 3 chains;",
+            " no changes to model likelihood/priors.\n")
+      }
       mcmc <- buildMCMC(sampler)
       cmcmc <- tryCatch(
         compileNimble(mcmc,project=model),
@@ -755,6 +774,8 @@ if(mode%in%c("likelihood_check","compile","hierarchical_compile",
           draws <- runMCMC(cmcmc,niter=2L,nburnin=0L,
               thin=1L,nchains=1L,progressBar=FALSE,
               samplesAsCodaMCMC=FALSE))
+        result$sampler_scheme <- sampler_scheme
+        result$block_metadata <- block_metadata
         result$seconds_for_2_sweeps <- unname(bench[["elapsed"]])
         result$parameter_columns <- colnames(draws)
         cat("Two trial MCMC sweeps (same model):",
@@ -789,6 +810,8 @@ if(mode%in%c("likelihood_check","compile","hierarchical_compile",
           fail("Posterior samples absent or nonfinite")
         result <- list(
           chain=chain,seed=seed,
+          sampler_scheme=sampler_scheme,
+          block_metadata=block_metadata,
           N=n,iterations=niter,burnin=nburn,thin=thin,
           saved_draws=nrow(posterior),
           elapsed_sampling_seconds=wall,
@@ -815,6 +838,7 @@ if(mode%in%c("likelihood_check","compile","hierarchical_compile",
           paste("niter",niter),paste("burnin",nburn),
           paste("thin",thin),paste("draws",nrow(posterior)),
           paste("sampling_seconds",signif(wall,6)),
+          paste("sampler_scheme",sampler_scheme),
           paste("status","UNVALIDATED_PROVISIONAL")),
           done_path)
         cat("Saved complete chain posterior:",save_path,"\n")
