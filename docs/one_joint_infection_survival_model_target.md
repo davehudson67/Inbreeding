@@ -132,3 +132,25 @@ Read-only derived baseline-mortality convergence analysis on the original three 
 - The six-node mortality `AF_slice` included `h4,f4,bGM,sigmaD,load31,load32`. Factor-direction adaptation stopped at iteration **1,400**, within burn-in. **This confirms completion only**, not effective mixing or convergence. Original chains 1–3, blocked sampler chain 4, and all datasets were preserved.
 - Added read-only `scripts/review_joint_af_slice_pilot.R` to compare chain 5 with original three long chains and blocked pilot 4: exact input/scientific code hashes, process exit markers, posterior medians, first-half vs second-half drift, age-specific derived mortality hazards, descriptive per-chain spectral ESS and ESS per sampling hour. Script uses separate timestamped outputs and does not change any chain files. Its outcome is pending execution on `rstudio02n`. The original three chains retain poor mixing (e.g., R-hat ~1.12 for derived age-specific mortality hazards), and a single 500-draw AF pilot cannot establish that AF_slice fixes this.
 - **Decision gate:** inspect pilot diagnostics before launching additional long AF_slice chains. Do not pool pilots with original full chains for final estimation without adequate convergence and consistent inference checks. Scientific limitations remain: 202 RTA deaths, 11 deliberately killed/euthanised, capture-effort proxy, fixed assay accuracies, selection by observed first capture/genotyping, and near-upper-prior-boundary `sigmaSE`/`sigmaEI`.
+
+## AF_slice full-cohort pilot mixing review — 18 November 2026
+
+Read-only comparison of all five chains was completed on `rstudio02n` with exit 0, output at `outputs/joint_sei_survival/full_joint_20261117/AF_slice_pilot_05_review_20261118T131956`. All five passed source-data and unchanged scientific-model hash comparisons. The AF_slice pilot chain 5 ran 4000 iterations (2000 burn-in), with 500 retained draws, in 1.970 sampling hours, 1.773 s per MCMC sweep; previous RW_block pilot chain 4 ran in 1.293 hours, 1.163 s/sweep.
+
+**Mixed but encouraging single-chain evidence (descriptive spectral ESS per sampling hour, chain 4 -> chain 5):**
+
+| Quantity | RW_block 4 | AF_slice 5 | Interpretation |
+| --- | ---: | ---: | --- |
+| `sigmaD` | 1.86 | 5.32 | ~2.9-fold better, still extremely low |
+| `load31` | 2.91 | 4.43 | ~1.5-fold better |
+| `h4` | 7.58 | 9.06 | ~1.2-fold better |
+| Baseline hazard age 8 | 7.12 | 7.70 | ~1.08-fold better |
+| Combined mortality frailty SD | 7.66 | 5.60 | worse |
+| `f4` | 11.10 | 7.12 | worse |
+| `load32` | 5.32 | 4.50 | worse |
+
+The AF pilot's half-chain standardized drift was lower than the blocked pilot for `sigmaD` (0.184 vs 0.986) and `load31` (0.746 vs 1.444), but drift and ESS estimates from one short chain are highly unstable; the pilots also used different burn-in and thinning. The AF pilot medians differed noticeably from the original three chains for `h4` (0.3985 vs 0.3298), `f4` (0.1995 vs 0.4731), `sigmaD` (1.086 vs 0.807), and baseline hazard age 8 (1.101 vs 0.779), although all fall inside the original pooled nominal 95% intervals, themselves nonconverged. This could indicate different portions of a weakly identified mortality ridge rather than successful mixing.
+
+Homozygosity ratios remained consistent in the AF pilot: acquisition OR 1.2904 versus original 1.2969; progression OR 1.4646 versus 1.4906; mortality HR 0.9737 versus 0.9759. **Do not treat those values as validated effects.**
+
+**Decision:** AF_slice warrants a proper independent multi-chain convergence test, not a conclusion of success. The original three chains' R-hat/ESS remain unacceptable, and both new pilots lack multiple-chain validation. Preserve chains 1–5. The next experiment should be three independent full-cohort AF_slice chains with consistent iterations, burn-in and monitors, and posterior diagnostics restricted to those chains; then decide whether sampler tuning, reparameterization, prior sensitivity and cause-specific mortality observation modelling are needed. No additional biological model variant is proposed.
