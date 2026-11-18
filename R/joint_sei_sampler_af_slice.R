@@ -60,11 +60,12 @@ configure_joint_sei_AF_slice <- function(
   names(widths) <- targets
 
   burn <- suppressWarnings(as.integer(Sys.getenv("NBURN","3000")))
-  if(is.na(burn) || burn<200L)
-    fail_af("AF_slice needs NBURN >= 200 for its factor adaptation")
-  # A pilot can have a shorter burn-in. Adapt factor directions only
-  # before the saved draw interval, never throughout the posterior sample.
-  max_factor_iterations <- as.integer(min(15000L,burn))
+  if(is.na(burn) || burn<1000L)
+    fail_af("AF_slice requires NBURN >= 1000 to finish adaptation before saving draws")
+  # AF_slice adapts widths after every factor rotation; reserve at least
+  # 600 burn-in iterations after the final factor-adaptation interval
+  # to accommodate width adaptation (up to 512 iterations).
+  max_factor_iterations <- as.integer(min(15000L,burn-600L))
   controls <- list(
     sliceWidths=unname(as.numeric(widths)),
     sliceAdaptFactorMaxIter=max_factor_iterations,
