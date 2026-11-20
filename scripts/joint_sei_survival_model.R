@@ -31,8 +31,9 @@
 options(stringsAsFactors=FALSE)
 mode <- Sys.getenv("MODE","validate")
 sampler_scheme <- Sys.getenv("SAMPLER_SCHEME","default")
-if(!sampler_scheme%in%c("default","blocked","af_slice"))
-  stop("SAMPLER_SCHEME must be default, blocked or af_slice")
+if(!sampler_scheme%in%c("default","blocked","af_slice",
+                       "af_slice_calendar"))
+  stop("SAMPLER_SCHEME must be default, blocked, af_slice or af_slice_calendar")
 if(sampler_scheme!="default" && !mode%in%
    c("hierarchical_benchmark","full"))
   stop("Special MCMC samplers apply only to benchmark/full modes")
@@ -727,7 +728,9 @@ if(mode%in%c("likelihood_check","compile","hierarchical_compile",
       save_path <- file.path(outdir,
           paste0("joint_hierarchical_",mode,
                  if(sampler_scheme=="blocked")"_blocked" else
-                   if(sampler_scheme=="af_slice")"_af_slice" else "",
+                   if(sampler_scheme=="af_slice")"_af_slice" else
+                     if(sampler_scheme=="af_slice_calendar")"_af_slice_calendar"
+                     else "",
                  if(full_benchmark)"_full_cohort" else "",
                  "_gate.rds"))
       if(file.exists(save_path) &&
@@ -763,12 +766,22 @@ if(mode%in%c("likelihood_check","compile","hierarchical_compile",
           sampler,tools::md5sum(validated))
         cat("Blocked proposal tuning based on original 3 chains;",
             " no changes to model likelihood/priors.\n")
-      } else if(sampler_scheme=="af_slice"){
+      } else if(sampler_scheme%in%c("af_slice","af_slice_calendar")){
         source("R/joint_sei_sampler_af_slice.R",local=TRUE)
-        block_metadata <- configure_joint_sei_AF_slice(
+        mortality_metadata <- configure_joint_sei_AF_slice(
           sampler,tools::md5sum(validated))
-        cat("AF_slice covariance directions adapt during burn-in;",
-            " same biological model and priors.\n")
+        block_metadata <- mortality_metadata
+        if(sampler_scheme=="af_slice_calendar"){
+          source("R/joint_sei_sampler_calendar_af_slice.R",local=TRUE)
+          calendar_metadata <- configure_joint_sei_calendar_AF_slice(
+            sampler,tools::md5sum(validated))
+          block_metadata <- list(
+            scheme=sampler_scheme,
+            mortality=mortality_metadata,
+            calendar=calendar_metadata)
+        }
+        cat("AF_slice proposal directions adapt within burn-in;",
+            " unchanged scientific likelihood and priors.\n")
       }
       mcmc <- buildMCMC(sampler)
       cmcmc <- tryCatch(
