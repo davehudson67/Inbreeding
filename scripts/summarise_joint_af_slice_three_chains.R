@@ -146,6 +146,11 @@ derived <- lapply(M,function(x){
   a32 <- x[,"load32"]
   sEI <- sqrt(a21^2+ei^2)
   sD <- sqrt(a31^2+a32^2+dd^2)
+  # Same anchored Gompertz-Makeham hazard as hierarchy:
+  # aGM = h4*(1-f4)*exp(-4*bGM), cGM = h4*f4.
+  # These baseline hazards exclude sex, infection, genotype and frailty.
+  hage <- function(age) x[,"h4"] * (
+    (1-x[,"f4"])*exp(x[,"bGM"]*(age-4)) + x[,"f4"])
   r12 <- a21/sEI
   r13 <- a31/sD
   r23 <- (a21*a31+ei*a32)/(sEI*sD)
@@ -160,6 +165,15 @@ derived <- lapply(M,function(x){
    mortality_HR_infectious_vs_S=exp(x[,"betaD[4]"]),
    SD_frailty_SE=se,SD_frailty_EI=sEI,SD_frailty_D=sD,
    SD_frailty_capture=x[,"sigmaCapture"],
+   baseline_hazard_age_2=hage(2),
+   baseline_hazard_age_4=hage(4),
+   baseline_hazard_age_6=hage(6),
+   baseline_hazard_age_8=hage(8),
+   baseline_hazard_age_10=hage(10),
+   baseline_hazard_age_12=hage(12),
+   baseline_hazard_ratio_8_to_2=hage(8)/hage(2),
+   baseline_makeham_component=x[,"h4"]*x[,"f4"],
+   baseline_gompertz_at_age_4=x[,"h4"]*(1-x[,"f4"]),
    cor_frailty_SE_EI=r12,
    cor_frailty_SE_D=r13,
    cor_frailty_EI_D=r23
@@ -356,6 +370,24 @@ writeLines(c(
   "Parameter-recovery simulations and predictive checks remain outstanding."),
   file.path(outdir,"AF_slice_convergence_verdict.txt"))
 
+cat("\n=== AF_SLICE: DERIVED BASELINE MORTALITY HAZARD CONVERGENCE ===\n")
+hazard_names <- c(
+  "baseline_hazard_age_2","baseline_hazard_age_4",
+  "baseline_hazard_age_6","baseline_hazard_age_8",
+  "baseline_hazard_age_10","baseline_hazard_age_12",
+  "baseline_hazard_ratio_8_to_2",
+  "baseline_makeham_component","baseline_gompertz_at_age_4",
+  "SD_frailty_D",
+  "mortality_HR_exposed_vs_S","mortality_HR_infectious_vs_S")
+print(derived_summary[
+  match(hazard_names,derived_summary$parameter),
+  c("parameter","median","lower95","upper95",
+    "rhat","ess_bulk","ess_tail")],
+  row.names=FALSE,digits=4)
+utils::write.csv(derived_summary[
+  match(hazard_names,derived_summary$parameter),],
+  file.path(outdir,"AF_slice_mortality_hazard_convergence.csv"),
+  row.names=FALSE)
 cat("\n=== AF_SLICE THREE-CHAIN HOMOZYGOSITY EFFECTS (PROVISIONAL) ===\n")
 keep <- c("acquisition_OR_hom_1SD",
           "progression_OR_hom_1SD",
