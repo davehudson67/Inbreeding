@@ -198,3 +198,7 @@ Same likelihood kernel and data as v1; v1 files, chains and outputs untouched. T
 3. No individual mortality frailty (`sigmaD`, `load31`, `load32` removed). Reason: one death per animal cannot separate frailty from G–M shape (h4/f4/sigmaD ridge, ESS 2–10).
 
 Files: `R/joint_sei_survival_hierarchy_nimble_v2.R`, `scripts/joint_sei_survival_model_v2.R`, `scripts/run_joint_v2_chain.sh`, `scripts/launch_joint_v2_chains.sh`, `scripts/summarise_joint_v2_chains.R`. Default NIMBLE samplers. `z` (S→E, E→I, capture) is also saved every 50th iteration so the summariser can forward-filter/backward-sample latent states and report the share of I onsets after each badger's last live capture. Output: `outputs/joint_sei_survival/full_joint_v2_centred/`. No results yet.
+
+## Joint model v3 (branch joint-v3-detcentred) — 23 November 2026
+
+v2 did not converge (max R-hat 1.039, min bulk ESS 75; 18/61 parameters fail). The worst mixing was `alphaP` against `periodEff[2:8]`, the corner-anchor ridge that v2 removed from the calendar RW. v3 adds one change: detection period effects are centred (`periodEff = periodRaw - mean(periodRaw)`, j = 1..10), so `alphaP` is average detection over 1976–2025. Everything else is as v2. Files: `*_v3*` next to the v2 files; output in `outputs/joint_sei_survival/full_joint_v3_detcentred/`. No results yet.
