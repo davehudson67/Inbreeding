@@ -202,3 +202,7 @@ Files: `R/joint_sei_survival_hierarchy_nimble_v2.R`, `scripts/joint_sei_survival
 ## Joint model v3 (branch joint-v3-detcentred) — 23 November 2026
 
 v2 did not converge (max R-hat 1.039, min bulk ESS 75; 18/61 parameters fail). The worst mixing was `alphaP` against `periodEff[2:8]`, the corner-anchor ridge that v2 removed from the calendar RW. v3 adds one change: detection period effects are centred (`periodEff = periodRaw - mean(periodRaw)`, j = 1..10), so `alphaP` is average detection over 1976–2025. Everything else is as v2. Files: `*_v3*` next to the v2 files; output in `outputs/joint_sei_survival/full_joint_v3_detcentred/`. No results yet.
+
+## Joint model v3b — Benton re-test (branch joint-v3b-benton) — 24 November 2026
+
+v3 plus one change: E→I carries the Benton et al. 2018 (J Anim Ecol 87:1500–1511) sex × age × inbreeding structure, with age centred at 4 years (`betaEI[5:8] ~ N(0, 0.5)`; kernel copy `R/joint_sei_survival_forward_nimble_benton.R`, shared kernel unchanged). Reason: Benton found multilocus homozygosity intensifies the age-related rise in progressed infection (antibody positivity) in females only; v3b re-tests that with latent states, test error and missed captures. Run long (NITER 46,000) in parallel with the v3 long run. No results yet.
