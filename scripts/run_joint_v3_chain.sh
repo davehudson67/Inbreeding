@@ -9,7 +9,8 @@ if ! [[ "$chain" =~ ^[1-9][0-9]?$ ]]; then
   exit 2
 fi
 printf -v label "%02d" "$chain"
-run_dir="outputs/joint_sei_survival/full_joint_v3_detcentred/chain_${label}"
+export RUN_NAME="${RUN_NAME:-full_joint_v3_detcentred}"
+run_dir="outputs/joint_sei_survival/${RUN_NAME}/chain_${label}"
 mkdir -p "$run_dir"
 log="${run_dir}/chain_console.log"
 status_file="${run_dir}/process_exit_status.txt"

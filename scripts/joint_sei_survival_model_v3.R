@@ -703,7 +703,7 @@ if(mode%in%c("likelihood_check","compile","hierarchical_compile",
     if(is.na(chain)||chain<1L||chain>99L)
       fail("CHAIN_ID must be an integer in 1..99")
     if(mode=="full") {
-      run_dir <- file.path(outdir,"full_joint_v3_detcentred",
+      run_dir <- file.path(outdir,Sys.getenv("RUN_NAME","full_joint_v3_detcentred"),
                            sprintf("chain_%02d",chain))
       dir.create(run_dir,recursive=TRUE,showWarnings=FALSE)
       save_path <- file.path(run_dir,"posterior_samples.rds")

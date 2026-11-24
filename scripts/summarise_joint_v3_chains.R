@@ -11,7 +11,8 @@
 # ============================================================================
 options(stringsAsFactors=FALSE)
 fail <- function(...) stop(paste0(...),call.=FALSE)
-root <- "outputs/joint_sei_survival/full_joint_v3_detcentred"
+root <- file.path("outputs/joint_sei_survival",
+  Sys.getenv("RUN_NAME","full_joint_v3_detcentred"))
 ids <- 1:3
 dirs <- file.path(root,sprintf("chain_%02d",ids))
 for(d in dirs){

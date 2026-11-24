@@ -1,18 +1,20 @@
 #!/usr/bin/env bash
 # Joint model v3: 20-badger compile gate, then 3 independent chains
-# (tmux joint_v3_c1..c3; NITER=16000 NBURN=6000 THIN=5; default samplers).
+# (tmux ${SESS}_c1..c3; NITER/NBURN/RUN_NAME/SESS overridable; THIN=5).
 # Refuses to touch existing chain folders or tmux sessions.
 set -Eeuo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 repo="$(pwd)"
-root="outputs/joint_sei_survival/full_joint_v3_detcentred"
+RUN_NAME="${RUN_NAME:-full_joint_v3_detcentred}"; SESS="${SESS:-joint_v3}"
+NITER="${NITER:-16000}"; NBURN="${NBURN:-6000}"
+root="outputs/joint_sei_survival/$RUN_NAME"
 [[ "$(git branch --show-current)" == "joint-v3-detcentred" ]] ||
   { echo "STOP: expected branch joint-v3-detcentred" >&2; exit 2; }
 command -v tmux >/dev/null || { echo "STOP: tmux required" >&2; exit 2; }
 for c in 1 2 3; do
-  if tmux has-session -t "joint_v3_c$c" 2>/dev/null ||
+  if tmux has-session -t "${SESS}_c$c" 2>/dev/null ||
      [[ -e "$root/chain_0$c" ]]; then
-    echo "STOP: joint_v3_c$c session or $root/chain_0$c exists" >&2; exit 3
+    echo "STOP: ${SESS}_c$c session or $root/chain_0$c exists" >&2; exit 3
   fi
 done
 mkdir -p "$root"
@@ -26,8 +28,8 @@ if ! grep -q "COMPILATION GATE: PASS" "$gate_log"; then
 fi
 grep -E "posterior log density|COMPILATION GATE" "$gate_log"
 for c in 1 2 3; do
-  tmux new-session -d -s "joint_v3_c$c" "cd '$repo' && \
-    NITER=16000 NBURN=6000 THIN=5 bash scripts/run_joint_v3_chain.sh $c"
-  echo "Launched joint_v3_c$c"
+  tmux new-session -d -s "${SESS}_c$c" "cd '$repo' && RUN_NAME=$RUN_NAME \
+    NITER=$NITER NBURN=$NBURN THIN=5 bash scripts/run_joint_v3_chain.sh $c"
+  echo "Launched ${SESS}_c$c ($RUN_NAME, NITER=$NITER)"
 done
 tmux ls
