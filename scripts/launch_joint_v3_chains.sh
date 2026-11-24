@@ -8,8 +8,9 @@ repo="$(pwd)"
 RUN_NAME="${RUN_NAME:-full_joint_v3_detcentred}"; SESS="${SESS:-joint_v3}"
 NITER="${NITER:-16000}"; NBURN="${NBURN:-6000}"
 root="outputs/joint_sei_survival/$RUN_NAME"
-[[ "$(git branch --show-current)" == "joint-v3-detcentred" ]] ||
-  { echo "STOP: expected branch joint-v3-detcentred" >&2; exit 2; }
+# joint-v3b-benton carries the v3 files unchanged, so v3 may launch from it.
+case "$(git branch --show-current)" in joint-v3-detcentred|joint-v3b-benton) ;;
+  *) echo "STOP: expected branch joint-v3-detcentred or joint-v3b-benton" >&2; exit 2;; esac
 command -v tmux >/dev/null || { echo "STOP: tmux required" >&2; exit 2; }
 for c in 1 2 3; do
   if tmux has-session -t "${SESS}_c$c" 2>/dev/null ||
