@@ -206,3 +206,7 @@ v2 did not converge (max R-hat 1.039, min bulk ESS 75; 18/61 parameters fail). T
 ## Joint model v3b — Benton re-test (branch joint-v3b-benton) — 24 November 2026
 
 v3 plus one change: E→I carries the Benton et al. 2018 (J Anim Ecol 87:1500–1511) sex × age × inbreeding structure, with age centred at 4 years (`betaEI[5:8] ~ N(0, 0.5)`; kernel copy `R/joint_sei_survival_forward_nimble_benton.R`, shared kernel unchanged). Reason: Benton found multilocus homozygosity intensifies the age-related rise in progressed infection (antibody positivity) in females only; v3b re-tests that with latent states, test error and missed captures. Run long (NITER 46,000) in parallel with the v3 long run. No results yet.
+
+## Joint model v3c — Hudson 2023 re-test (new files on joint-v3b-benton) — 24 November 2026
+
+v3 plus one change: each badger's Gompertz senescence rate is `b_i = bGM × exp(gammaB × hom_i)`, with the curve still anchored at age 4 (same age-4 hazard and Makeham share), `gammaB ~ N(0, 0.5)` per SD homozygosity. Reason: Hudson et al. 2023 (J Anim Ecol 92:1881–1892) found homozygosity acts most strongly on b (earlier onset, steeper actuarial senescence); v3 had only a constant hazard multiplier and could not test it. Time-varying latent S/E/I infection is unchanged. The shared kernel is unchanged (it already takes the curve parameters per badger). Caution: v3 puts 96% of age-4 hazard in the Makeham constant, so b is the least well-determined part of the model.
