@@ -210,3 +210,9 @@ v3 plus one change: E→I carries the Benton et al. 2018 (J Anim Ecol 87:1500–
 ## Joint model v3c — Hudson 2023 re-test (new files on joint-v3b-benton) — 24 November 2026
 
 v3 plus one change: each badger's Gompertz senescence rate is `b_i = bGM × exp(gammaB × hom_i)`, with the curve still anchored at age 4 (same age-4 hazard and Makeham share), `gammaB ~ N(0, 0.5)` per SD homozygosity. Reason: Hudson et al. 2023 (J Anim Ecol 92:1881–1892) found homozygosity acts most strongly on b (earlier onset, steeper actuarial senescence); v3 had only a constant hazard multiplier and could not test it. Time-varying latent S/E/I infection is unchanged. The shared kernel is unchanged (it already takes the curve parameters per badger). Caution: v3 puts 96% of age-4 hazard in the Makeham constant, so b is the least well-determined part of the model.
+
+## 25 November 2026 — v3/v3b/v3c long runs converged; v4 and checks added
+
+All three long runs passed the gate (R-hat ≤ 1.01, ESS ≥ 400). Neither Benton 2018 (v3b) nor Hudson 2023 (v3c) replicates; see the Paper 1 doc. Added, as new files on joint-v3b-benton:
+- **v4** (`*_v4*`, `R/joint_sei_survival_forward_nimble_removal.R`, `R/joint_removals.R`): v3 plus one change, EUTHANISED/KILLED deaths censored at the removal quarter (death coded −q; the kernel returns after that quarter's observation). Reason: removals are not natural mortality.
+- **`scripts/check_joint_v3_model.R`** (read-only, any converged run via RUN_NAME): A pathway split of +1 SD homozygosity on survival (infection route vs direct route); B inferred state at death, recovered vs unseen; C posterior predictive check of live recaptures and recovered deaths by 5-year period.
